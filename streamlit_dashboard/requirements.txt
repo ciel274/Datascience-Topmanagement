@@ -1,17 +1,16 @@
-streamlit==1.28.1
-pandas==2.1.3
-numpy==1.26.2
-plotly==5.18.0
-scikit-learn>=1.3.0
+streamlit
+pandas
+numpy
+plotly
+scikit-learn
 streamlit-antd-components
 
 # Advanced Features
-# prophet>=1.1.5
-openpyxl>=3.1.0
-fpdf2>=2.7.0
+# prophet
+openpyxl
+fpdf2
 
 # Google Calendar Integration
-
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
