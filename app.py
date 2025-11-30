@@ -12,6 +12,10 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 import streamlit_antd_components as sac
 import google_calendar_utils
+import translations as tr
+
+def t(key):
+    return tr.get_text(key, st.session_state.get("language", "日本語"))
 
 
 
@@ -2015,29 +2019,29 @@ user_notes_path = f"{st.session_state.user_data_dir}/{st.session_state.current_u
 
 # ===== サイドバー =====
 # ===== サイドバー =====
-st.sidebar.markdown('<div class="chart-header"><i class="bi bi-sliders icon-badge"></i>ダッシュボード設定</div>', unsafe_allow_html=True)
+st.sidebar.markdown(f'<div class="chart-header"><i class="bi bi-sliders icon-badge"></i>{t("settings_title")}</div>', unsafe_allow_html=True)
 
 # 1. 企業・目標設定
 expanded_settings = not bool(st.session_state.company_name)
-with st.sidebar.expander("企業・目標設定", expanded=expanded_settings):
-    company = st.text_input("志望企業名", value=st.session_state.company_name, placeholder="例: 〇〇商社", key="comp_input")
+with st.sidebar.expander(t("company_goal_settings"), expanded=expanded_settings):
+    company = st.text_input(t("target_company"), value=st.session_state.company_name, placeholder=t("target_company_placeholder"), key="comp_input")
     st.session_state.company_name = company
     
-    target = st.slider("目標正答率 (%)", 0, 100, st.session_state.target_rate_user, 5, key="target_slider")
+    target = st.slider(t("target_accuracy"), 0, 100, st.session_state.target_rate_user, 5, key="target_slider")
     st.session_state.target_rate_user = target
     
-    study_time = st.slider("1日の学習時間 (分)", 10, 180, st.session_state.daily_study_time, 10, key="time_slider")
+    study_time = st.slider(t("daily_study_time"), 10, 180, st.session_state.daily_study_time, 10, key="time_slider")
     st.session_state.daily_study_time = study_time
     
-    time_policy = st.selectbox("時間設定", ["標準", "厳しく(-10%)", "緩く(+10%)"], 
-                             index=["標準", "厳しく(-10%)", "緩く(+10%)"].index(st.session_state.time_policy), key="time_select")
+    time_policy = st.selectbox(t("time_policy"), ["標準", "厳しく(-10%)", "緩く(+10%)"], 
+                             index=["標準", "厳しく(-10%)", "緩く(+10%)"].index(st.session_state.time_policy), format_func=t, key="time_select")
     st.session_state.time_policy = time_policy
 
     # 試験日設定（サイドバーに追加）
     st.markdown("---")
-    st.caption("試験日を設定すると学習プランが生成されます")
+    st.caption(t("exam_date_caption"))
     current_exam_date = st.session_state.exam_date if st.session_state.exam_date else datetime.today()
-    new_exam_date = st.date_input("試験日", value=current_exam_date, key="sidebar_exam_date")
+    new_exam_date = st.date_input(t("exam_date"), value=current_exam_date, key="sidebar_exam_date")
     
     if new_exam_date != st.session_state.exam_date:
         st.session_state.exam_date = new_exam_date
@@ -2051,9 +2055,9 @@ if "df_master" not in st.session_state:
 
 # 2. 学習データ入力
 expanded_flag = st.session_state.get("expander_open", st.session_state.get("keep_input_open", True))
-with st.sidebar.expander("学習データ入力", expanded=expanded_flag):
-    st.markdown("<p class='input-label'>日付</p>", unsafe_allow_html=True)
-    dt = st.date_input("日付", datetime.today(), label_visibility="collapsed", key="dt_input")
+with st.sidebar.expander(t("input_data_title"), expanded=expanded_flag):
+    st.markdown(f"<p class='input-label'>{t('date')}</p>", unsafe_allow_html=True)
+    dt = st.date_input(t("date"), datetime.today(), label_visibility="collapsed", key="dt_input")
     
     # マスタデータ使用
     df_master_use = st.session_state.df_master
@@ -2061,7 +2065,7 @@ with st.sidebar.expander("学習データ入力", expanded=expanded_flag):
     subjs = sorted(df_master_use["科目"].unique().tolist())
     # セッションステートからインデックスを復元
     subj_idx = subjs.index(st.session_state.subj) if st.session_state.subj in subjs else 0
-    sel_subj = st.selectbox("科目", subjs, index=subj_idx, label_visibility="collapsed", key="s1")
+    sel_subj = st.selectbox(t("subject"), subjs, index=subj_idx, label_visibility="collapsed", key="s1")
     
     # 科目変更時のみリセット
     if st.session_state.subj != sel_subj:
@@ -2072,7 +2076,7 @@ with st.sidebar.expander("学習データ入力", expanded=expanded_flag):
     
     gens = ["選択"] + sorted(df_master_use[df_master_use["科目"] == st.session_state.subj]["ジャンル"].unique().tolist())
     gen_idx = gens.index(st.session_state.gen) if st.session_state.gen in gens else 0
-    sel_gen = st.selectbox("ジャンル", gens, index=gen_idx, label_visibility="collapsed", key="g1")
+    sel_gen = st.selectbox(t("genre"), gens, index=gen_idx, label_visibility="collapsed", key="g1")
     
     if st.session_state.gen != sel_gen:
         st.session_state.gen = sel_gen
@@ -2084,9 +2088,9 @@ with st.sidebar.expander("学習データ入力", expanded=expanded_flag):
     else:
         unis = []
     
-    unis = ["選択"] + unis
+    unis = [t("select")] + unis
     uni_idx = unis.index(st.session_state.uni) if st.session_state.uni in unis else 0
-    sel_uni = st.selectbox("単元", unis, index=uni_idx, label_visibility="collapsed", key="u1")
+    sel_uni = st.selectbox(t("unit"), unis, index=uni_idx, label_visibility="collapsed", key="u1")
     
     if st.session_state.uni != sel_uni:
         st.session_state.uni = sel_uni
@@ -2094,19 +2098,19 @@ with st.sidebar.expander("学習データ入力", expanded=expanded_flag):
     ids = df_master_use[(df_master_use["科目"] == st.session_state.subj) & 
                     (df_master_use["ジャンル"] == st.session_state.gen) & 
                     (df_master_use["単元"] == st.session_state.uni)]["問題ID"].tolist() if (
-                    st.session_state.uni and st.session_state.uni != "選択") else []
+                    st.session_state.uni and st.session_state.uni != t("select")) else []
     
     pid = ids[0] if ids else ""
-    st.caption(f"問題ID: **{pid or '未選択'}**")
+    st.caption(f"{t('problem_id')}: **{pid or t('not_selected')}**")
     
     # タイマー機能
     col_t1, col_t2 = st.columns(2)
     with col_t1:
         def start_timer():
             st.session_state.timer_start_time = time.time()
-            st.toast("計測開始", icon="⏱️")
+            st.toast(t("timer_toast_start"), icon="⏱️")
 
-        st.button("計測開始", use_container_width=True, on_click=start_timer)
+        st.button(t("timer_start"), use_container_width=True, on_click=start_timer)
 
     with col_t2:
         def stop_timer():
@@ -2114,29 +2118,29 @@ with st.sidebar.expander("学習データ入力", expanded=expanded_flag):
                 elapsed = int(time.time() - st.session_state.timer_start_time)
                 st.session_state.timer_elapsed = elapsed
                 st.session_state.timer_start_time = None
-                st.toast(f"完了: {elapsed}秒", icon="✅")
+                st.toast(t("timer_toast_stop").format(elapsed), icon="✅")
             else:
-                st.toast("未計測です", icon="⚠️")
+                st.toast(t("timer_toast_warn"), icon="⚠️")
 
-        st.button("停止", use_container_width=True, on_click=stop_timer)
+        st.button(t("timer_stop"), use_container_width=True, on_click=stop_timer)
     
     col1, col2 = st.columns(2)
     with col1:
         # タイマー結果があればそれをデフォルトに
         def_at = st.session_state.get("timer_elapsed", 60)
-        at = st.number_input("解答時間(秒)", min_value=0, max_value=600, value=def_at, step=5, key="at_input")
+        at = st.number_input(t("answer_time"), min_value=0, max_value=600, value=def_at, step=5, key="at_input")
     with col2:
-        cor = st.selectbox("正誤", ["〇", "✕"], key="cor_select")
+        cor = st.selectbox(t("result"), ["〇", "✕"], format_func=t, key="cor_select")
     
-    cau = st.selectbox("ミスの原因", ["-", "理解不足", "知識不足", "時間不足", "ケアレス"], key="cau_select")
-    stm = st.number_input("学習時間(分)", min_value=0, max_value=180, value=10, step=5, key="stm_input")
+    cau = st.selectbox(t("miss_reason"), ["-", "理解不足", "知識不足", "時間不足", "ケアレス"], format_func=t, key="cau_select")
+    stm = st.number_input(t("study_time_min"), min_value=0, max_value=180, value=10, step=5, key="stm_input")
     
     # 復習メモ欄
-    memo = st.text_area("復習メモ (任意)", placeholder="気づいたこと、覚えるべきポイントなど...", height=80, key="memo_input")
+    memo = st.text_area(t("memo"), placeholder=t("memo_placeholder"), height=80, key="memo_input")
     
     def add_data_callback(current_pid):
         if not current_pid:
-            st.toast("問題IDが特定できません", icon="⚠️")
+            st.toast(t("toast_error_id"), icon="⚠️")
             return
         
         # 入力値の取得
@@ -2192,10 +2196,10 @@ with st.sidebar.expander("学習データ入力", expanded=expanded_flag):
         st.session_state.show_success_toast = True
         st.session_state.expander_open = True
 
-    st.button("データを追加", type="primary", use_container_width=True, key="add_btn", on_click=add_data_callback, args=(pid,))
+    st.button(t("add_data_btn"), type="primary", use_container_width=True, key="add_btn", on_click=add_data_callback, args=(pid,))
 
 # 3. ユーザー管理
-with st.sidebar.expander("ユーザー管理", expanded=False):
+with st.sidebar.expander(t("user_management"), expanded=False):
     # user_dataディレクトリ作成
     if not os.path.exists(st.session_state.user_data_dir):
         os.makedirs(st.session_state.user_data_dir)
@@ -2205,53 +2209,54 @@ with st.sidebar.expander("ユーザー管理", expanded=False):
     existing_users = [os.path.basename(f).replace(".csv", "") for f in user_files]
     
     # デフォルトユーザーが存在しない場合は追加
-    if "デフォルトユーザー" not in existing_users:
-        existing_users.insert(0, "デフォルトユーザー")
+    if t("default_user") not in existing_users:
+        existing_users.insert(0, t("default_user"))
     
     # ユーザー選択
     selected_user = st.selectbox(
-        "ユーザーを選択",
-        options=["新規作成..."] + existing_users,
+        t("select_user"),
+        options=[t("create_new_user")] + existing_users,
         index=(existing_users.index(st.session_state.current_user) + 1) 
-              if st.session_state.current_user in existing_users else 1
+              if st.session_state.current_user in existing_users else 1,
+        format_func=lambda x: t("create_new") if x == t("create_new_user") else x
     )
     
-    if selected_user == "新規作成...":
-        new_user = st.text_input("新しいユーザー名", placeholder="例: 山田太郎")
-        if st.button("ユーザー作成") and new_user:
+    if selected_user == t("create_new_user"):
+        new_user = st.text_input(t("new_user_name"), placeholder=t("new_user_placeholder"))
+        if st.button(t("create_user_btn")) and new_user:
             if new_user not in existing_users:
                 st.session_state.current_user = new_user
                 # 空のCSVを作成
                 empty_df = pd.DataFrame(columns=["日付", "問題ID", "正誤", "解答時間(秒)", "ミスの原因", "学習投入時間(分)"])
                 empty_df.to_csv(f"{st.session_state.user_data_dir}/{new_user}.csv", index=False)
-                st.success(f"ユーザー「{new_user}」を作成しました")
+                st.success(t("user_created").format(new_user))
                 trigger_rerun()
             else:
-                st.error("このユーザー名は既に存在します")
+                st.error(t("user_exists"))
     elif selected_user != st.session_state.current_user:
         st.session_state.current_user = selected_user
         trigger_rerun()
     
-    st.markdown(f"**現在のユーザー:** {st.session_state.current_user}")
+    st.markdown(f"**{t('current_user')}:** {st.session_state.current_user}")
 
 # 4. ファイルアップロードセクション
-st.sidebar.markdown('<div class="chart-header" style="font-size:0.9rem; margin-bottom:8px;"><i class="bi bi-folder icon-badge" style="width:24px; height:24px; font-size:0.9rem;"></i>ファイル管理</div>', unsafe_allow_html=True)
-with st.sidebar.expander("詳細", expanded=False):
-    st.markdown("<p class='input-label'>問題マスタCSV</p>", unsafe_allow_html=True)
-    master_file = st.file_uploader("問題マスタCSV", type=["csv"], key="master", label_visibility="collapsed")
+st.sidebar.markdown(f'<div class="chart-header" style="font-size:0.9rem; margin-bottom:8px;"><i class="bi bi-folder icon-badge" style="width:24px; height:24px; font-size:0.9rem;"></i>{t("file_management")}</div>', unsafe_allow_html=True)
+with st.sidebar.expander(t("file_details"), expanded=False):
+    st.markdown(f"<p class='input-label'>{t('master_csv')}</p>", unsafe_allow_html=True)
+    master_file = st.file_uploader(t("master_csv"), type=["csv"], key="master", label_visibility="collapsed")
     
-    st.markdown("<p class='input-label'>学習ログCSV</p>", unsafe_allow_html=True)
-    log_file = st.file_uploader("学習ログCSV", type=["csv"], key="log", label_visibility="collapsed")
+    st.markdown(f"<p class='input-label'>{t('log_csv')}</p>", unsafe_allow_html=True)
+    log_file = st.file_uploader(t("log_csv"), type=["csv"], key="log", label_visibility="collapsed")
 
 # マスタ読み込み処理（ファイル管理の後で更新）
 if master_file:
     try:
         st.session_state.df_master = pd.read_csv(master_file)
         with st.sidebar:
-            sac.alert("マスタ読込完了", icon='check-circle', color='success', size='sm')
+            sac.alert(t("master_loaded"), icon='check-circle', color='success', size='sm')
     except:
         with st.sidebar:
-            sac.alert("マスタ読込失敗", icon='x-circle', color='error', size='sm')
+            sac.alert(t("master_failed"), icon='x-circle', color='error', size='sm')
 else:
     # アップロードがない場合はデフォルト（初期化済み）
     pass
@@ -2282,11 +2287,11 @@ if log_file:
             # マニュアル入力用DFも更新
             st.session_state.df_log_manual = df_log.copy()
             with st.sidebar:
-                sac.alert(f"ログを統合して保存しました", icon='check-circle', color='success', size='sm')
+                sac.alert(t("log_merged"), icon='check-circle', color='success', size='sm')
         except:
             df_log = st.session_state.df_log_manual.copy()
             with st.sidebar:
-                sac.alert("ログ読込失敗", icon='x-circle', color='error', size='sm')
+                sac.alert(t("log_failed"), icon='x-circle', color='error', size='sm')
     else:
         # 既に処理済みの場合は、保存されたファイル（最新の状態）を読み込む
         if os.path.exists(user_log_path):
@@ -2335,9 +2340,9 @@ cor_r = 0.0
 tgt_r = st.session_state.target_rate_user / 100
 te = 0.0
 streak = 0
-prediction_text = "データ不足"
+prediction_text = t("data_insufficient")
 prediction_color = "#6B7280"
-prediction_sub = "学習を続けましょう"
+prediction_sub = t("keep_studying")
 bd = pd.DataFrame(columns=["日", "正答率", "ミス", "count", "sum"]) # 初期化
 
 try:
@@ -2353,12 +2358,12 @@ try:
     df_all = df.copy()
 
     # 分析期間の選択
-    st.sidebar.markdown('<div class="chart-header"><i class="bi bi-search icon-badge"></i>分析期間</div>', unsafe_allow_html=True)
+    st.sidebar.markdown(f'<div class="chart-header"><i class="bi bi-search icon-badge"></i>{t("analysis_period")}</div>', unsafe_allow_html=True)
     mind = df["日付"].min()
     maxd = df["日付"].max()
     defs = maxd - timedelta(days=7) if pd.notnull(maxd) else datetime.today() - timedelta(days=7)
-    sd = st.sidebar.date_input("開始日", defs if pd.notnull(defs) else datetime.today(), key="sd_input")
-    ed = st.sidebar.date_input("終了日", maxd if pd.notnull(maxd) else datetime.today(), key="ed_input")
+    sd = st.sidebar.date_input(t("start_date"), defs if pd.notnull(defs) else datetime.today(), key="sd_input")
+    ed = st.sidebar.date_input(t("end_date"), maxd if pd.notnull(maxd) else datetime.today(), key="ed_input")
 
     # 期間フィルタ
     if not df.empty:
@@ -2413,7 +2418,7 @@ try:
 
     # 1. 初心者 (10問以上)
     if att >= 10:
-        badges.append("<i class='bi bi-egg-fill'></i> 駆け出し")
+        badges.append(f"<i class='bi bi-egg-fill'></i> {t('beginner_badge')}")
 
     # 2. 継続日数 (Streak)
     if not df.empty:
@@ -2437,10 +2442,10 @@ try:
             
             # 今日か昨日学習していれば継続中とみなす
             if (today_d - dates[-1]).days <= 1:
-                badges.append(f"<i class='bi bi-fire'></i> 継続 {streak}日")
+                badges.append(f"<i class='bi bi-fire'></i> {t('streak_badge').format(streak=streak)}")
             else:
                 # 途切れている場合
-                badges.append(f"<i class='bi bi-clock-history'></i> 最終継続 {streak}日")
+                badges.append(f"<i class='bi bi-clock-history'></i> {t('last_streak_badge').format(streak=streak)}")
 
     # 3. 推論マスター (推論ジャンルの正答率80%以上 & 5問以上)
     if not df.empty:
@@ -2448,14 +2453,14 @@ try:
         genre_stats["acc"] = (genre_stats["count"] - genre_stats["sum"]) / genre_stats["count"]
         for g_name, row in genre_stats.iterrows():
             if row["count"] >= 5 and row["acc"] >= 0.8:
-                badges.append(f"<i class='bi bi-trophy-fill'></i> {g_name}マスター")
+                badges.append(f"<i class='bi bi-trophy-fill'></i> {g_name}{t('master_suffix')}")
 
     # 4. スピードスター (平均解答時間が目標の80%以下 & 正答率80%以上)
     if att >= 10 and cor_r >= 0.8:
         avg_time = df["解答時間(秒)"].mean()
         avg_target = df["目標時間"].mean()
         if avg_target > 0 and avg_time <= avg_target * 0.8:
-            badges.append("<i class='bi bi-lightning-fill'></i> スピードスター")
+            badges.append(f"<i class='bi bi-lightning-fill'></i> {t('speedster_badge')}")
 
     # バッジHTML生成（最大3個まで）
     display_badges = badges[:3]  # 最初の3つのみ表示
@@ -2468,25 +2473,25 @@ try:
         badges_html += f"<span class='badge' style='background: #e5e7eb; color: #6b7280; border-color: #9ca3af;'>+{remaining}</span>"
 
 except Exception as e:
-    st.error(f"データ処理中にエラーが発生しました: {e}")
+    st.error(f"{t('data_processing_error')}: {e}")
 
 
 # ===== ヘッダー (Data Loaded) =====
-is_en = st.session_state.language == "English"
-title_text = "SPI Bottleneck Discovery" if is_en else "SPI対策 弱点発見Dashboard"
+title_text = t("app_title")
 company_val = st.session_state.get('company_name', '')
 if not company_val:
-    company_val = 'Target Company' if is_en else '志望企業'
-target_lbl = 'Goal' if is_en else '目標'
-policy_val = st.session_state.get('time_policy','標準')
+    company_val = t("target_company") if st.session_state.language == "English" else t('target_company') # Fallback or just use t()
+    company_val = t("target_company") # Simplified
+target_lbl = t("goal_label")
+policy_val = st.session_state.get('time_policy',t('standard'))
 
 # カウントダウン
 countdown_html = ""
 if st.session_state.exam_date:
     days_left = (pd.to_datetime(st.session_state.exam_date) - pd.to_datetime(datetime.today().date())).days
     if days_left >= 0:
-        lbl = "Days Left" if is_en else "試験まであと"
-        unit = "Days" if is_en else "日"
+        lbl = t("days_left")
+        unit = t("days_unit")
         bg_col = "#ef4444" if days_left <= 7 else "#3b82f6"
         countdown_html = f"<div style='background:{bg_col}; color:white; padding:2px 10px; border-radius:6px; font-weight:bold; font-size:0.8rem; display:flex; align-items:center; gap:4px;'><span>{lbl}</span><span style='font-size:1rem;'>{days_left}</span><span>{unit}</span></div>"
 
@@ -2509,30 +2514,30 @@ st.markdown(
 
 if not df.empty:
     cau = df[df["ミス"] == 1]["ミスの原因"].value_counts().reset_index()
-    cau.columns = ["原因", "回数"]
+    cau.columns = [t("cause"), t("count")]
 
     # --- 3. 合格ライン到達予測 (Linear Regression) ---
-    prediction_text = "データ不足"
-    prediction_sub = "少なくとも3日分のデータが必要です"
+    prediction_text = t("data_insufficient")
+    prediction_sub = t("min_3_days_data")
     prediction_color = NEUTRAL
 
     if len(bd) >= 3:
         x = np.arange(len(bd))
         y = bd["正答率"].values
         if np.std(y) == 0:
-            prediction_text = "変化なし"
-            prediction_sub = "正答率が一定です"
+            prediction_text = t("no_change")
+            prediction_sub = t("accuracy_constant")
         else:
             z = np.polyfit(x, y, 1)
             slope = z[0]
             
             if cor_r >= tgt_r:
-                prediction_text = "達成済み!"
-                prediction_sub = "目標をクリアしています"
+                prediction_text = t("achieved_exclamation")
+                prediction_sub = t("goal_cleared")
                 prediction_color = SUCCESS
             elif slope <= 0.001: # ほぼ横ばいか減少
-                prediction_text = "改善傾向なし"
-                prediction_sub = "学習方法の見直しを推奨"
+                prediction_text = t("no_improvement")
+                prediction_sub = t("review_study_method")
                 prediction_color = DANGER
             else:
                 intercept = z[1]
@@ -2541,23 +2546,23 @@ if not df.empty:
                 days_remaining = days_needed - current_day
                 
                 if days_remaining <= 0:
-                     prediction_text = "達成間近"
-                     prediction_sub = "あと少しです！"
+                     prediction_text = t("close_to_achieving")
+                     prediction_sub = t("almost_there")
                      prediction_color = SUCCESS
                 elif days_remaining > 365:
-                    prediction_text = "1年以上"
-                    prediction_sub = "ペースアップが必要です"
+                    prediction_text = t("over_1_year")
+                    prediction_sub = t("speed_up_needed")
                     prediction_color = WARNING
                 else:
                     pred_date = datetime.today() + timedelta(days=int(days_remaining))
                     prediction_text = pred_date.strftime("%Y/%m/%d")
-                    prediction_sub = "目標到達予測日"
+                    prediction_sub = t("predicted_achievement_date")
                     prediction_color = PRIMARY
     
 else:
-    cau = pd.DataFrame(columns=["原因", "回数"])
-    prediction_text = "データ不足"
-    prediction_sub = "データがありません"
+    cau = pd.DataFrame(columns=[t("cause"), t("count")])
+    prediction_text = t("data_insufficient")
+    prediction_sub = t("no_data")
     prediction_color = NEUTRAL
 
 # ===== アクション & メニュー (2カラムレイアウト) =====
@@ -2568,16 +2573,16 @@ if not df.empty:
         tu = agg.iloc[0] if not agg.empty else None
         if tu is not None:
             tr = tu["正答率"]
-            tc = cau.iloc[0]["原因"] if not cau.empty else "不明"
-            rsn = f"正答率{tr:.0%}。" + ("時間不足が課題。制限時間練習を。" if te > 0.3 else f"「{tc}」が主因。該当分野の復習を。")
+            tc = cau.iloc[0][t("cause")] if not cau.empty else t("unknown")
+            rsn = f"{t('accuracy_rate')}{tr:.0%}。" + (t("time_shortage_issue") if te > 0.3 else f"「{tc}」{t('main_cause_review_field')}")
             
             st.markdown(f"""
             <div class="action-card" style="height: 100%;">
               <div class="action-icon"><i class="bi bi-lightning-charge-fill"></i></div>
               <div class="action-content">
                 <div class="action-header">
-                  <div class="action-title">次週の重点単元</div>
-                  <div class="priority-badge">最優先</div>
+                  <div class="action-title">{t('next_week_focus_unit')}</div>
+                  <div class="priority-badge">{t('highest_priority')}</div>
                 </div>
                 <div class="action-unit">{tu['単元']}</div>
                 <div class="action-reason">{rsn}</div>
@@ -2592,8 +2597,8 @@ if not df.empty:
           <div class="action-icon" style="background: {PRIMARY}; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);"><i class="bi bi-calendar-event-fill"></i></div>
           <div class="action-content">
             <div class="action-header">
-              <div class="action-title">本日の学習メニュー</div>
-              <div class="priority-badge" style="background: {PRIMARY};">おすすめ</div>
+              <div class="action-title">{t('todays_study_menu')}</div>
+              <div class="priority-badge" style="background: {PRIMARY};">{t('recommended')}</div>
             </div>
             <div style="margin-top: 12px;">
         """, unsafe_allow_html=True)
@@ -2606,11 +2611,11 @@ if not df.empty:
                 st.markdown(f"""
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px dashed #e5e7eb; padding-bottom:4px;">
                     <span style="font-weight:700; color:#374151;">{i+1}. {row['単元']}</span>
-                    <span style="font-weight:800; color:{PRIMARY};">{q_count}問</span>
+                    <span style="font-weight:800; color:{PRIMARY};">{q_count}{t('questions_unit')}</span>
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.markdown("<div>データ不足のため提案できません</div>", unsafe_allow_html=True)
+            st.markdown(f"<div>{t('cannot_propose_no_data')}</div>", unsafe_allow_html=True)
             
         st.markdown("""
             </div>
@@ -2662,17 +2667,17 @@ if is_dark_mode:
     st.markdown(sac_tab_css, unsafe_allow_html=True)
 
 tab_selection = sac.tabs([
-    sac.TabsItem(label='ダッシュボード', icon='bar-chart-fill'),
-    sac.TabsItem(label='データ一覧', icon='table'),
-    sac.TabsItem(label='AI分析', icon='robot'),
-    sac.TabsItem(label='復習ノート', icon='journal-bookmark-fill'),
-    sac.TabsItem(label='設定', icon='gear-fill'),
+    sac.TabsItem(label=t("tab_dashboard"), icon='bar-chart-fill'),
+    sac.TabsItem(label=t("tab_data_list"), icon='table'),
+    sac.TabsItem(label=t("tab_ai_analysis"), icon='robot'),
+    sac.TabsItem(label=t("tab_review_notes"), icon='journal-bookmark-fill'),
+    sac.TabsItem(label=t("tab_settings"), icon='gear-fill'),
 ], align='center', size='lg', color='blue')
 
 
-if tab_selection == 'ダッシュボード':
+if tab_selection == t("tab_dashboard"):
     if df_all.empty:
-        sac.alert("サイドバーからデータを入力してください", icon='info-circle', color='info')
+        sac.alert(t("sidebar_input_prompt"), icon='info-circle', color='info')
     else:
         # st.markdown("### 📊 主要指標") # Removed
         
@@ -2726,36 +2731,36 @@ if tab_selection == 'ダッシュボード':
         st.markdown(f"""
         <div class="stats-strip">
             <div class="stat-item">
-                <div class="stat-label">現在の正答率</div>
+                <div class="stat-label">{t("current_accuracy")}</div>
                 <div class="stat-value" style="color:{col_cor}">{cor_r:.0%}</div>
-                <div class="stat-sub">期間平均</div>
+                <div class="stat-sub">{t("period_average")}</div>
             </div>
             <div class="stat-item">
-                <div class="stat-label">目標との差</div>
+                <div class="stat-label">{t("gap_to_goal")}</div>
                 <div class="stat-value" style="color:{col_gap}">{gap:+.0%}</div>
-                <div class="stat-sub">{'達成' if gap>=0 else '未達'}</div>
+                <div class="stat-sub">{t("achieved") if gap>=0 else t("not_achieved")}</div>
             </div>
             <div class="stat-item">
-                <div class="stat-label">達成予測</div>
+                <div class="stat-label">{t("forecast")}</div>
                 <div class="stat-value" style="color:{prediction_color}; font-size: 1.6rem;">{prediction_text}</div>
                 <div class="stat-sub">{prediction_sub}</div>
             </div>
             <div class="stat-item">
-                <div class="stat-label">時間超過率</div>
+                <div class="stat-label">{t("time_excess_rate")}</div>
                 <div class="stat-value" style="color:{col_time}">{te:.0%}</div>
-                <div class="stat-sub">目標時間超過</div>
+                <div class="stat-sub">{t("over_target_time")}</div>
             </div>
             <div class="stat-item">
-                <div class="stat-label">総演習数</div>
+                <div class="stat-label">{t("total_exercises")}</div>
                 <div class="stat-value" style="color:var(--primary)">{att}</div>
-                <div class="stat-sub">累計問題数</div>
+                <div class="stat-sub">{t("total_problems")}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
         # ===== 学習カレンダーヒートマップ =====
         # ===== 学習カレンダー =====
-        with st.expander("学習カレンダー", expanded=True):
+        with st.expander(t("study_calendar"), expanded=True):
             # セッションステートで表示月を管理
             if "calendar_year" not in st.session_state:
                 st.session_state.calendar_year = datetime.now().year
@@ -2765,7 +2770,7 @@ if tab_selection == 'ダッシュボード':
             # 月間ナビゲーション
             c_nav1, c_nav2, c_nav3 = st.columns([1, 5, 1])
             with c_nav1:
-                if st.button("◀ 前月", key="prev_month"):
+                if st.button(t("prev_month"), key="prev_month"):
                     if st.session_state.calendar_month == 1:
                         st.session_state.calendar_month = 12
                         st.session_state.calendar_year -= 1
@@ -2774,7 +2779,7 @@ if tab_selection == 'ダッシュボード':
                     trigger_rerun()
                     
             with c_nav3:
-                if st.button("次月 ▶", key="next_month"):
+                if st.button(t("next_month"), key="next_month"):
                     if st.session_state.calendar_month == 12:
                         st.session_state.calendar_month = 1
                         st.session_state.calendar_year += 1
@@ -2783,7 +2788,7 @@ if tab_selection == 'ダッシュボード':
                     trigger_rerun()
             
             with c_nav2:
-                st.markdown(f"<div style='text-align: center; font-size: 1.1rem; font-weight: 700; padding: 8px;'>{st.session_state.calendar_year}年{st.session_state.calendar_month}月</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align: center; font-size: 1.1rem; font-weight: 700; padding: 8px;'>{st.session_state.calendar_year}{t('year')}{st.session_state.calendar_month}{t('month')}</div>", unsafe_allow_html=True)
             
             # 週間プランからカレンダー用のデータを生成
             weekly_plan_for_calendar = {}
@@ -2901,24 +2906,24 @@ if tab_selection == 'ダッシュボード':
                 col1_html = f"""
                 <div class="calendar-stat">
                     <i class="bi bi-fire calendar-stat-icon"></i>
-                    <div class="calendar-stat-value">{current_streak}日</div>
-                    <div class="calendar-stat-label">現在の連続学習</div>
+                    <div class="calendar-stat-value">{current_streak}{t('days_unit')}</div>
+                    <div class="calendar-stat-label">{t('current_streak_study')}</div>
                 </div>
                 """
                 
                 col2_html = f"""
                 <div class="calendar-stat">
                     <i class="bi bi-calendar-check calendar-stat-icon"></i>
-                    <div class="calendar-stat-value">{study_days_this_month}日</div>
-                    <div class="calendar-stat-label">今月の学習日数</div>
+                    <div class="calendar-stat-value">{study_days_this_month}{t('days_unit')}</div>
+                    <div class="calendar-stat-label">{t('study_days_this_month')}</div>
                 </div>
                 """
                 
                 col3_html = f"""
                 <div class="calendar-stat">
                     <i class="bi bi-trophy calendar-stat-icon"></i>
-                    <div class="calendar-stat-value">{max_streak}日</div>
-                    <div class="calendar-stat-label">最長連続記録</div>
+                    <div class="calendar-stat-value">{max_streak}{t('days_unit')}</div>
+                    <div class="calendar-stat-label">{t('longest_streak_record')}</div>
                 </div>
                 """
                 
@@ -2929,20 +2934,20 @@ if tab_selection == 'ダッシュボード':
                 with col3:
                     st.markdown(col3_html, unsafe_allow_html=True)
             else:
-                st.info("データが表示できませんでした。")
+                st.info(t("cannot_display_data"))
 
         # ===== 学習ロードマップ =====
         st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
-        st.markdown("<div class='chart-header'><i class='bi bi-signpost-split icon-badge'></i>学習ロードマップ</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='chart-header'><i class='bi bi-signpost-split icon-badge'></i>{t('study_roadmap')}</div>", unsafe_allow_html=True)
         
         roadmap_data, current_phase, recommendations = generate_study_roadmap_detailed(df, st.session_state.df_master)
         
         if roadmap_data and current_phase and recommendations:
             # 現在のフェーズを強調表示
             phase_colors = {
-                "基礎固め": "#3B82F6",
-                "標準演習": "#8B5CF6",
-                "応用演習": "#EC4899"
+                t("basic_consolidation"): "#3B82F6",
+                t("standard_practice"): "#8B5CF6",
+                t("advanced_practice"): "#EC4899"
             }
             current_color = phase_colors.get(current_phase, "#6B7280")
             
@@ -2954,7 +2959,7 @@ if tab_selection == 'ダッシュボード':
                 border-radius: 8px;
                 margin-bottom: 20px;
             ">
-                <div style="font-size: 0.9rem; color: #64748b; font-weight: 600;">現在のフェーズ</div>
+                <div style="font-size: 0.9rem; color: #64748b; font-weight: 600;">{t('current_phase')}</div>
                 <div style="font-size: 1.5rem; font-weight: 800; color: {current_color}; margin-top: 4px;">
                     {current_phase}
                 </div>
@@ -2964,18 +2969,18 @@ if tab_selection == 'ダッシュボード':
             # 進捗バーを3つ表示
             col1, col2, col3 = st.columns(3)
             
-            for idx, (col, phase) in enumerate([(col1, "基礎固め"), (col2, "標準演習"), (col3, "応用演習")]):
+            for idx, (col, phase) in enumerate([(col1, t("basic_consolidation")), (col2, t("standard_practice")), (col3, t("advanced_practice"))]):
                 with col:
                     progress = roadmap_data["progress"][idx]
                     accuracy = roadmap_data["accuracy"][idx]
                     status = roadmap_data["status"][idx]
                     
                     # ステータスに応じた色とアイコン
-                    if status == "完了":
+                    if status == t("completed"):
                         status_color = "#10B981"
                         status_icon = '<i class="bi bi-check-circle-fill" style="color:#10B981;"></i>'
                         status_text_color = "#10B981"
-                    elif status == "進行中":
+                    elif status == t("in_progress"):
                         status_color = "#F59E0B"
                         status_icon = '<i class="bi bi-arrow-repeat" style="color:#F59E0B;"></i>'
                         status_text_color = "#F59E0B"
@@ -3041,7 +3046,7 @@ if tab_selection == 'ダッシュボード':
                     
                     <div class="roadmap-card">
                         <div class="roadmap-tooltip">
-                            <strong>【主な単元】</strong><br>
+                            <strong>{t('main_units')}</strong><br>
                             {units_list}
                         </div>
                         <div style="font-size: 1.5rem; margin-bottom: 8px;">{status_icon}</div>
@@ -3050,10 +3055,10 @@ if tab_selection == 'ダッシュボード':
                         </div>
                         </div>
                         <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
-                            カバー率: {progress:.0f}%
+                            {t('coverage_rate')}: {progress:.0f}%
                         </div>
                         <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 8px;">
-                            正答率: {accuracy:.0f}%
+                            {t('accuracy_rate')}: {accuracy:.0f}%
                         </div>
                         <div style="
                             background: #e5e7eb;
@@ -3083,7 +3088,7 @@ if tab_selection == 'ダッシュボード':
                 padding: 20px;
             ">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; color:#1e293b; font-weight:700;">
-                    <i class="bi bi-lightbulb-fill" style="color:#f59e0b;"></i> 次のステップ
+                    <i class="bi bi-lightbulb-fill" style="color:#f59e0b;"></i> {t('next_steps')}
                 </div>
                 <ul style="margin:0; padding-left:20px; color:#475569;">
                     {''.join([f'<li style="margin-bottom:8px;">{rec}</li>' for rec in recommendations])}
@@ -3091,7 +3096,7 @@ if tab_selection == 'ダッシュボード':
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.info("学習データが蓄積されるとロードマップが表示されます。")
+            st.info(t("roadmap_no_data"))
 
         # ===== 週間学習プラン =====
         if st.session_state.exam_date:
@@ -3110,7 +3115,7 @@ if tab_selection == 'ダッシュボード':
             # st.write(f"DEBUG: Plan Result: {weekly_plan}")
             
             if weekly_plan:
-                sac.divider(label='今週の学習プラン', icon='calendar-week', align='center')
+                sac.divider(label=t('weekly_study_plan'), icon='calendar-week', align='center')
                 
                 # CSSでチェックボックスの余白を詰める & Expanderのスタイル調整
                 st.markdown("""
@@ -3159,7 +3164,7 @@ if tab_selection == 'ダッシュボード':
                 col_prev, col_info, col_next = st.columns([1, 2, 1])
                 with col_prev:
                     if st.session_state.plan_page_idx > 0:
-                        if st.button("← 前の日程", key="plan_prev"):
+                        if st.button(t("prev_schedule"), key="plan_prev"):
                             st.session_state.plan_page_idx -= 1
                             # 再計算
                             start_idx = st.session_state.plan_page_idx * DAYS_PER_PAGE
@@ -3167,7 +3172,7 @@ if tab_selection == 'ダッシュボード':
                 
                 with col_next:
                     if end_idx < total_days:
-                        if st.button("次の日程 →", key="plan_next"):
+                        if st.button(t("next_schedule"), key="plan_next"):
                             st.session_state.plan_page_idx += 1
                             # 再計算
                             start_idx = st.session_state.plan_page_idx * DAYS_PER_PAGE
@@ -3190,7 +3195,7 @@ if tab_selection == 'ダッシュボード':
                                 with st.expander(label, expanded=is_today):
                                     st.markdown(f"""
                                     <div style="text-align:center; font-size:0.75rem; color:#6B7280; margin-bottom:8px; font-weight:600;">
-                                        <i class="bi bi-clock"></i> {plan_data['time_minutes']}分
+                                        <i class="bi bi-clock"></i> {plan_data['time_minutes']}{t('minutes_unit')}
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
@@ -3231,12 +3236,12 @@ if tab_selection == 'ダッシュボード':
                                         with c_btn:
                                             # カレンダー追加ポップオーバー
                                             try:
-                                                with st.popover("", icon=":material/calendar_month:", help="この単元をGoogleカレンダーに追加"):
-                                                    st.markdown(f"**{unit_name}** をカレンダーに追加")
-                                                    sch_time = st.time_input("開始時間", value=datetime.strptime("20:00", "%H:%M").time(), key=f"time_{chk_key}")
-                                                    sch_dur = st.number_input("学習時間(分)", value=30, step=10, key=f"dur_{chk_key}")
+                                                with st.popover("", icon=":material/calendar_month:", help=t("add_to_google_calendar")):
+                                                    st.markdown(f"**{unit_name}** {t('add_to_calendar')}")
+                                                    sch_time = st.time_input(t("start_time"), value=datetime.strptime("20:00", "%H:%M").time(), key=f"time_{chk_key}")
+                                                    sch_dur = st.number_input(t("study_duration_min"), value=30, step=10, key=f"dur_{chk_key}")
                                                     
-                                                    if st.button("登録", key=f"btn_{chk_key}", type="primary"):
+                                                    if st.button(t("register"), key=f"btn_{chk_key}", type="primary"):
                                                         service, error = google_calendar_utils.get_calendar_service()
                                                         if error:
                                                             st.error(error)
@@ -3252,16 +3257,16 @@ if tab_selection == 'ダッシュボード':
                                                                 start_dt = datetime.combine(date_obj, sch_time)
                                                                 end_dt = start_dt + timedelta(minutes=sch_dur)
                                                                 
-                                                                summary = f"📖 学習: {unit_name}"
-                                                                description = f"学習単元: {unit_name}\nタイプ: {unit_type}"
+                                                                summary = f"📖 {t('study')}: {unit_name}"
+                                                                description = f"{t('study_unit')}: {unit_name}\n{t('type')}: {unit_type}"
                                                                 
                                                                 link, err = google_calendar_utils.add_event_to_calendar(service, summary, start_dt, end_dt, description)
                                                                 if link:
-                                                                    st.success("登録しました！")
+                                                                    st.success(t("registered_success"))
                                                                 elif err:
-                                                                    st.error(f"エラー: {err}")
+                                                                    st.error(f"{t('error')}: {err}")
                                                             except Exception as e:
-                                                                st.error(f"エラー: {e}")
+                                                                st.error(f"{t('error')}: {e}")
                                             except AttributeError:
                                                 # st.popoverが使えない古いバージョンの場合（フォールバック）
                                                 st.caption("📅")
@@ -3274,18 +3279,18 @@ if tab_selection == 'ダッシュボード':
         if st.session_state.exam_date:
             roadmap_fig = generate_roadmap(st.session_state.exam_date, cor_r, tgt_r)
             if roadmap_fig:
-                sac.divider(label='合格ロードマップ', icon='map', align='center')
+                sac.divider(label=t('roadmap_to_pass'), icon='map', align='center')
                 st.plotly_chart(roadmap_fig, use_container_width=True, config={'displayModeBar': False})
 
         # ===== グラフ =====
-        sac.divider(label='分析グラフ', icon='graph-up', align='center')
+        sac.divider(label=t('analysis_graphs'), icon='graph-up', align='center')
         
         m1, m2 = st.columns([2, 1])
 
         with m1:
-            st.markdown('<div class="chart-header"><i class="bi bi-graph-up icon-badge"></i>日別正答率トレンド</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chart-header"><i class="bi bi-graph-up icon-badge"></i>{t("daily_accuracy_trend")}</div>', unsafe_allow_html=True)
             bd = bd.sort_values("日").reset_index(drop=True)
-            bd["日_label"] = pd.to_datetime(bd["日"]).dt.day.astype(str) + "日"
+            bd["日_label"] = pd.to_datetime(bd["日"]).dt.day.astype(str) + t("day_suffix")
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=bd["日_label"],
@@ -3293,8 +3298,8 @@ if tab_selection == 'ダッシュボード':
                 mode='lines+markers',
                 line=dict(color=PRIMARY, width=3),
                 marker=dict(size=10, color=PRIMARY, line=dict(color='white', width=2)),
-                name="正答率",
-                hovertemplate='<b>%{x}</b><br>正答率：%{y:.0f}%<extra></extra>'
+                name=t("accuracy_rate"),
+                hovertemplate=f'<b>%{{x}}</b><br>{t("accuracy_rate")}：%{{y:.0f}}%<extra></extra>'
             ))
             last_rate = bd["正答率"].iloc[-1] if len(bd) > 0 else cor_r
             target_color = SUCCESS if last_rate >= tgt_r else DANGER
@@ -3346,7 +3351,7 @@ if tab_selection == 'ダッシュボード':
         b1, b2 = st.columns(2)
 
         with b1:
-            st.markdown('<div class="chart-header"><i class="bi bi-list-check icon-badge"></i>優先単元 Top 5</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chart-header"><i class="bi bi-list-check icon-badge"></i>{t("top_5_priority_units")}</div>', unsafe_allow_html=True)
             t5 = agg.head(5).reset_index(drop=True)
             if not t5.empty:
                 max_v = max(t5["優先度"].max(), 1.0)
@@ -3366,8 +3371,8 @@ if tab_selection == 'ダッシュボード':
                     x=t5["優先度"],
                     orientation='h',
                     marker=dict(color=PRIMARY, line=dict(color='rgba(0,0,0,0.06)', width=0)),
-                    hovertemplate='%{y}<br>優先度：%{x:.2f}<extra></extra>',
-                    name='優先度'
+                    hovertemplate=f'%{{y}}<br>{t("priority")}：%{{x:.2f}}<extra></extra>',
+                    name=t('priority')
                 ))
                 fig.update_layout(
                     template='simple_white',
@@ -3384,14 +3389,14 @@ if tab_selection == 'ダッシュボード':
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         with b2:
-            st.markdown('<div class="chart-header"><i class="bi bi-pie-chart icon-badge"></i>誤答原因分析</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chart-header"><i class="bi bi-pie-chart icon-badge"></i>{t("incorrect_answer_cause_analysis")}</div>', unsafe_allow_html=True)
             fig = go.Figure(go.Bar(
-                x=cau["原因"],
-                y=cau["回数"],
+                x=cau[t("cause")],
+                y=cau[t("count")],
                 marker=dict(color=ACCENT, line=dict(color='rgba(0,0,0,0.06)', width=1)),
-                hovertemplate='%{x}<br>回数：%{y}<extra></extra>'
+                hovertemplate=f'%{{x}}<br>{t("count")}：%{{y}}<extra></extra>'
             ))
-            max_y = max(cau["回数"].max() if not cau.empty else 1, 1)
+            max_y = max(cau[t("count")].max() if not cau.empty else 1, 1)
             fig.update_layout(
                 template='simple_white',
                 paper_bgcolor='rgba(0,0,0,0)',
@@ -3413,8 +3418,8 @@ if tab_selection == 'ダッシュボード':
             
             if prophet_result:
                 st.markdown("---")
-                st.markdown('<div class="chart-header"><i class="bi bi-graph-up-arrow icon-badge"></i>AI時系列予測（Prophet）</div>', unsafe_allow_html=True)
-                st.caption("Facebookの時系列予測アルゴリズムによる、より精密な予測です。")
+                st.markdown(f'<div class="chart-header"><i class="bi bi-graph-up-arrow icon-badge"></i>{t("ai_time_series_prediction_prophet")}</div>', unsafe_allow_html=True)
+                st.caption(t("prophet_desc"))
                 
                 col_p1, col_p2 = st.columns([1, 2])
                 
@@ -3424,16 +3429,16 @@ if tab_selection == 'ダッシュボード':
                     predicted_rate = max(0, min(1, predicted_rate))
                     
                     st.metric(
-                        "試験日予測正答率",
+                        t("exam_day_predicted_accuracy"),
                         f"{predicted_rate:.1%}",
                         delta=f"{(predicted_rate - cor_r):.1%}"
                     )
                     
                     if predicted_rate >= tgt_r:
-                        sac.alert("✨ 目標達成の見込みあり", icon='check-circle', color='success', size='sm')
+                        sac.alert(t("goal_achievement_likely"), icon='check-circle', color='success', size='sm')
                     else:
                         gap = tgt_r - predicted_rate
-                        sac.alert(f"⚠️ 目標まで{gap:.1%}不足", icon='exclamation-circle', color='warning', size='sm')
+                        sac.alert(f"⚠️ {t('goal_shortage').format(gap=gap):.1%}", icon='exclamation-circle', color='warning', size='sm')
                 
                 with col_p2:
                     # 予測グラフ（実績 + 予測）
@@ -3447,7 +3452,7 @@ if tab_selection == 'ダッシュボード':
                         x=actual_df["ds"],
                         y=actual_df["y"],
                         mode='markers',
-                        name='実績',
+                        name=t('actual_results'),
                         marker=dict(size=8, color=PRIMARY)
                     ))
                     
@@ -3456,7 +3461,7 @@ if tab_selection == 'ダッシュボード':
                         x=forecast_df["日付"],
                         y=forecast_df["予測正答率"],
                         mode='lines',
-                        name='予測',
+                        name=t('prediction'),
                         line=dict(color=ACCENT, width=2)
                     ))
                     
@@ -3465,7 +3470,7 @@ if tab_selection == 'ダッシュボード':
                         x=forecast_df["日付"],
                         y=forecast_df["上限"],
                         mode='lines',
-                        name='上限',
+                        name=t('upper_bound'),
                         line=dict(width=0),
                         showlegend=False
                     ))
@@ -3474,7 +3479,7 @@ if tab_selection == 'ダッシュボード':
                         x=forecast_df["日付"],
                         y=forecast_df["下限"],
                         mode='lines',
-                        name='下限',
+                        name=t('lower_bound'),
                         fill='tonexty',
                         fillcolor='rgba(249, 115, 22, 0.2)',
                         line=dict(width=0),
@@ -3486,15 +3491,15 @@ if tab_selection == 'ダッシュボード':
                         y=tgt_r,
                         line_dash="dash",
                         line_color="red",
-                        annotation_text="目標"
+                        annotation_text=t("goal")
                     )
                     
                     fig_prophet.update_layout(
                         height=250,
                         margin=dict(l=20, r=20, t=20, b=20),
                         yaxis=dict(tickformat=".0%", range=[0, 1.05]),
-                        xaxis_title="日付",
-                        yaxis_title="正答率",
+                        xaxis_title=t("date"),
+                        yaxis_title=t("accuracy_rate"),
                         legend=dict(orientation="h", yanchor="top", y=-0.2),
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)'
@@ -3502,21 +3507,21 @@ if tab_selection == 'ダッシュボード':
                     
                     st.plotly_chart(fig_prophet, use_container_width=True, config={'displayModeBar': False})
             elif error_msg:
-                sac.alert(f"Prophet予測: {error_msg}", icon='info-circle', color='info', size='sm')
+                sac.alert(f"{t('prophet_prediction')}: {error_msg}", icon='info-circle', color='info', size='sm')
 
         # --- 詳細分析（ヒートマップ・散布図） ---
-        sac.divider(label='詳細分析', icon='search', align='center')
+        sac.divider(label=t('detailed_analysis'), icon='search', align='center')
         
         c_h1, c_h2 = st.columns(2)
         with c_h1:
-            st.markdown('<div class="chart-header"><i class="bi bi-grid-3x3 icon-badge"></i>分野別正答率</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chart-header"><i class="bi bi-grid-3x3 icon-badge"></i>{t("accuracy_by_field")}</div>', unsafe_allow_html=True)
             heatmap_data = df.groupby(["科目", "ジャンル"])["ミス"].agg(["sum", "count"]).reset_index()
             heatmap_data["正答率"] = (heatmap_data["count"] - heatmap_data["sum"]) / heatmap_data["count"]
             heatmap_matrix = heatmap_data.pivot(index="ジャンル", columns="科目", values="正答率")
             
             fig_heat = px.imshow(
                 heatmap_matrix,
-                labels=dict(x="科目", y="ジャンル", color="正答率"),
+                labels=dict(x=t("subject"), y=t("genre"), color=t("accuracy_rate")),
                 x=heatmap_matrix.columns,
                 y=heatmap_matrix.index,
                 color_continuous_scale="RdBu", # Changed back to RdBu for visibility (Red=Low, Blue=High)
@@ -3531,12 +3536,12 @@ if tab_selection == 'ダッシュボード':
                 margin=dict(l=0,r=0,t=30,b=0),
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                coloraxis_colorbar=dict(title="正答率", tickformat=".0%")
+                coloraxis_colorbar=dict(title=t("accuracy_rate"), tickformat=".0%")
             )
             st.plotly_chart(fig_heat, use_container_width=True)
             
         with c_h2:
-            st.markdown('<div class="chart-header"><i class="bi bi-crosshair icon-badge"></i>弱点分析 (4象限)</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chart-header"><i class="bi bi-crosshair icon-badge"></i>{t("weakness_analysis_4_quadrants")}</div>', unsafe_allow_html=True)
             unit_stats = df.groupby("単元").agg({
                 "解答時間(秒)": "mean",
                 "ミス": ["sum", "count"],
@@ -3567,21 +3572,21 @@ if tab_selection == 'ダッシュボード':
             
             # 象限ラベル（アノテーション）
             # 左上 (速い・高い): 理想
-            fig_scatter.add_annotation(x=avg_time*0.5, y=min(1.0, avg_acc + 0.1), text="理想的", showarrow=False, font=dict(color=SUCCESS, size=11, weight="bold"))
+            fig_scatter.add_annotation(x=avg_time*0.5, y=min(1.0, avg_acc + 0.1), text=t("ideal"), showarrow=False, font=dict(color=SUCCESS, size=11, weight="bold"))
             # 右上 (遅い・高い): 慎重/要反復
-            fig_scatter.add_annotation(x=avg_time + (max_time-avg_time)*0.5, y=min(1.0, avg_acc + 0.1), text="要反復", showarrow=False, font=dict(color=WARNING, size=11, weight="bold"))
+            fig_scatter.add_annotation(x=avg_time + (max_time-avg_time)*0.5, y=min(1.0, avg_acc + 0.1), text=t("needs_repetition"), showarrow=False, font=dict(color=WARNING, size=11, weight="bold"))
             # 左下 (速い・低い): ケアレスミス
-            fig_scatter.add_annotation(x=avg_time*0.5, y=max(0.0, avg_acc - 0.1), text="ケアレスミス", showarrow=False, font=dict(color=ACCENT, size=11, weight="bold"))
+            fig_scatter.add_annotation(x=avg_time*0.5, y=max(0.0, avg_acc - 0.1), text=t("careless_mistake"), showarrow=False, font=dict(color=ACCENT, size=11, weight="bold"))
             # 右下 (遅い・低い): 基礎不足
-            fig_scatter.add_annotation(x=avg_time + (max_time-avg_time)*0.5, y=max(0.0, avg_acc - 0.1), text="要復習", showarrow=False, font=dict(color=DANGER, size=11, weight="bold"))
+            fig_scatter.add_annotation(x=avg_time + (max_time-avg_time)*0.5, y=max(0.0, avg_acc - 0.1), text=t("needs_review"), showarrow=False, font=dict(color=DANGER, size=11, weight="bold"))
             
             fig_scatter.update_traces(marker=dict(line=dict(width=1, color='white')))
             fig_scatter.update_layout(
                 template='simple_white',
                 height=320, 
                 margin=dict(l=0,r=0,t=30,b=0), 
-                yaxis=dict(range=[-0.05, 1.05], tickformat=".0%", title="正答率"),
-                xaxis=dict(title="平均解答時間 (秒)"),
+                yaxis=dict(range=[-0.05, 1.05], tickformat=".0%", title=t("accuracy_rate")),
+                xaxis=dict(title=t("avg_answer_time_sec")),
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
@@ -3589,9 +3594,9 @@ if tab_selection == 'ダッシュボード':
             st.plotly_chart(fig_scatter, use_container_width=True)
         
         # ===== 科目別達成状況 =====
-        sac.divider(label='科目別達成状況', icon='stack', align='center')
+        sac.divider(label=t('subject_achievement_status'), icon='stack', align='center')
         if cs.empty:
-            st.info("科目別の集計データがありません。")
+            st.info(t("no_subject_data"))
         else:
             cols_display = st.columns(len(cs))
             for i, row in enumerate(cs.itertuples()):
@@ -3630,14 +3635,14 @@ if tab_selection == 'ダッシュボード':
 
             sel = st.session_state.get("selected_subject", None)
             if sel:
-                sac.divider(label=f'<i class="bi bi-search"></i> {sel} の単元別正答率', icon='search', align='left')
+                sac.divider(label=f'<i class="bi bi-search"></i> {sel} {t("unit_accuracy_rate")}', icon='search', align='left')
                 units = df[df["科目"] == sel].groupby("単元")["ミス"].agg(["sum", "count"]).reset_index()
                 if units.empty:
-                    st.info("該当科目にデータがありません。")
+                    st.info(t("no_data_for_subject"))
                 else:
                     units["正答率"] = (units["count"] - units["sum"]) / units["count"]
                     units = units.sort_values("正答率", ascending=False).reset_index(drop=True)
-                    st.dataframe(units[["単元", "正答率", "count"]].rename(columns={"count": "試行回数"}), use_container_width=True)
+                    st.dataframe(units[[t("unit"), t("accuracy_rate"), t("count")]].rename(columns={t("count"): t("attempts")}), use_container_width=True)
 
                     fig_units = go.Figure(go.Bar(
                         x=units["正答率"],
@@ -3655,35 +3660,36 @@ if tab_selection == 'ダッシュボード':
                         yaxis=dict(tickfont=dict(size=13, color="#111827"))
                     )
                     st.plotly_chart(fig_units, use_container_width=True, config={"displayModeBar": False})
-                    if st.button("閉じる", key=f"close_subj_{sel}"):
+                    if st.button(t("close"), key=f"close_subj_{sel}"):
                         st.session_state.selected_subject = None
                         trigger_rerun()
-if tab_selection == 'データ一覧':
-    sac.divider(label='データダウンロード', icon='download', align='center')
+if tab_selection == t("tab_data_list"):
+    st.markdown(f"### 📋 {t('tab_data_list')}")
+    sac.divider(label=t('data_download'), icon='download', align='center')
     col_dl1, col_dl2, col_dl3 = st.columns(3)
     
     with col_dl1:
         csv_log = st.session_state.df_log_manual.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("学習ログ (.csv)", data=csv_log, file_name=f"study_log_{st.session_state.current_user}.csv", mime="text/csv", use_container_width=True)
+        st.download_button(t("learning_log_csv"), data=csv_log, file_name=f"study_log_{st.session_state.current_user}.csv", mime="text/csv", use_container_width=True)
         
     with col_dl2:
         if not st.session_state.df_notes.empty:
             csv_notes = st.session_state.df_notes.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("復習ノート (.csv)", data=csv_notes, file_name=f"review_notes_{st.session_state.current_user}.csv", mime="text/csv", use_container_width=True)
+            st.download_button(t("review_notes_csv"), data=csv_notes, file_name=f"review_notes_{st.session_state.current_user}.csv", mime="text/csv", use_container_width=True)
         else:
-            st.button("復習ノート (なし)", disabled=True, use_container_width=True)
+            st.button(t("review_notes_none"), disabled=True, use_container_width=True)
             
     with col_dl3:
         if not agg.empty:
             csv_agg = agg.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("単元別集計 (.csv)", data=csv_agg, file_name=f"unit_stats_{st.session_state.current_user}.csv", mime="text/csv", use_container_width=True)
+            st.download_button(t("unit_summary_csv"), data=csv_agg, file_name=f"unit_stats_{st.session_state.current_user}.csv", mime="text/csv", use_container_width=True)
         else:
-            st.button("単元別集計 (なし)", disabled=True, use_container_width=True)
+            st.button(t("unit_summary_none"), disabled=True, use_container_width=True)
     
-    with st.expander("入力済みデータ一覧", expanded=True):
+    with st.expander(t("entered_data_list"), expanded=True):
         if not st.session_state.df_log_manual.empty:
             # --- 新機能: データエディタで直接編集 ---
-            sac.alert("セルをダブルクリックして直接編集できます", icon='pencil-square', color='info', size='sm')
+            sac.alert(t("edit_cell_instruction"), icon='pencil-square', color='info', size='sm')
             
             # 日付カラムを datetime に変換してエディタに渡す
             df_editor = st.session_state.df_log_manual.copy()
@@ -3695,9 +3701,9 @@ if tab_selection == 'データ一覧':
                 num_rows="dynamic",
                 use_container_width=True,
                 column_config={
-                    "日付": st.column_config.DateColumn("日付", format="YYYY-MM-DD"),
-                    "正誤": st.column_config.SelectboxColumn("正誤", options=["〇", "✕"]),
-                    "ミスの原因": st.column_config.SelectboxColumn("ミスの原因", options=["-", "理解不足", "知識不足", "時間不足", "ケアレス"]),
+                    "日付": st.column_config.DateColumn(t("date"), format="YYYY-MM-DD"),
+                    "正誤": st.column_config.SelectboxColumn(t("result"), options=["〇", "✕"]),
+                    "ミスの原因": st.column_config.SelectboxColumn(t("miss_reason"), options=["-", "理解不足", "知識不足", "時間不足", "ケアレス"]),
                 }
             )
             
@@ -3705,54 +3711,54 @@ if tab_selection == 'データ一覧':
             if not edited_df.equals(df_editor):
                 edited_df["日付"] = edited_df["日付"].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notnull(x) else "")
                 st.session_state.df_log_manual = edited_df
-                st.success("変更を保存しました")
+                st.success(t("changes_saved"))
                 trigger_rerun()
             
             csv = st.session_state.df_log_manual.to_csv(index=False, encoding='utf-8-sig')
             st.download_button(
-                label="CSVをダウンロード",
+                label=t("download_csv"),
                 data=csv,
                 file_name=f"spi_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv"
             )
             
     st.markdown("---")
-    uploaded = st.file_uploader("CSVでデータを置換（学習ログ）", type=["csv"], key="tab2_upload")
+    uploaded = st.file_uploader(t("replace_data_csv"), type=["csv"], key="tab2_upload")
     if uploaded is not None:
         try:
             df_new = pd.read_csv(uploaded)
             required = ["日付", "問題ID", "正誤", "解答時間(秒)", "ミスの原因", "学習投入時間(分)"]
             missing = [c for c in required if c not in df_new.columns]
             if missing:
-                st.error(f"CSVに必須列がありません: {', '.join(missing)}")
+                st.error(t("missing_csv_columns").format(columns=', '.join(missing)))
             else:
                 st.session_state.df_log_manual = df_new[required].copy()
-                st.success("セッションデータをCSVで置換しました")
+                st.success(t("session_data_replaced"))
                 trigger_rerun()
         except Exception as e:
-            st.error(f"CSV読込失敗: {e}")
+            st.error(t("csv_read_failed").format(error=e))
     
     st.markdown("---")
-    with st.expander("危険な操作"):
-        if st.button("全データを削除する", type="primary"):
+    with st.expander(t("dangerous_operations")):
+        if st.button(t("delete_all_data"), type="primary"):
             st.session_state.df_log_manual = pd.DataFrame(columns=["日付", "問題ID", "正誤", "解答時間(秒)", "ミスの原因", "学習投入時間(分)"])
-            st.success("セッション内の学習ログを全て削除しました")
+            st.success(t("all_logs_deleted"))
             trigger_rerun()
             
         else:
-            st.info("入力データがありません。サイドバーから追加してください。")
+            st.info(t("no_input_data_prompt"))
 
-if tab_selection == 'AI分析':
-    sac.divider(label='AI分析レポート', icon='robot', align='center')
-    st.write("機械学習(Random Forest)を用いて、あなたの学習データを深層分析します。")
+if tab_selection == t("tab_ai_analysis"):
+    sac.divider(label=t('ai_analysis_report'), icon='robot', align='center')
+    st.write(t("ai_analysis_desc"))
     
     if df.empty or len(df) < 5:
-        sac.alert("分析には少なくとも5件以上の学習データが必要です", icon='exclamation-triangle', color='warning')
+        sac.alert(t("ai_analysis_min_data"), icon='exclamation-triangle', color='warning')
     else:
         # 詳細インサイト表示（Phase 2: ルールベースAI強化）
         st.markdown ("---")
-        sac.divider(label='パーソナライズド学習分析', icon='person-check-fill', align='left')
-        st.caption("あなたの学習パターンを多角的に分析し、最適な学習戦略を提案します。")
+        sac.divider(label=t('personalized_learning_analysis'), icon='person-check-fill', align='left')
+        st.caption(t("personalized_learning_analysis_desc"))
         
         insights = generate_detailed_insights(df, cor_r, tgt_r, st.session_state.get("exam_date"))
         
@@ -3779,24 +3785,24 @@ if tab_selection == 'AI分析':
                     closable=False
                 )
         else:
-            sac.alert("データ蓄積中...より詳細な分析は10件以上のデータが必要です", icon='info-circle', color='info')
+            sac.alert(t("data_accumulation_needed"), icon='info-circle', color='info')
         
         st.markdown("---")
         
         # モデル学習
-        with st.spinner("AIモデル学習中..."):
+        with st.spinner(t("ai_model_training")):
             model_acc, importances, encoders = train_ai_models(df)
             
         if model_acc is None:
-            st.error("モデル学習に失敗しました。")
+            st.error(t("model_training_failed"))
         else:
             le_subj, le_unit, min_date = encoders
             
             # 1. 未来予測
-            sac.divider(label='正答率予測シミュレーション', icon='graph-up-arrow', align='left')
+            sac.divider(label=t('accuracy_prediction_simulation'), icon='graph-up-arrow', align='left')
             col_ai1, col_ai2 = st.columns([1, 2])
             with col_ai1:
-                target_date = st.date_input("予測日", value=datetime.today() + timedelta(days=7))
+                target_date = st.date_input(t("prediction_date"), value=datetime.today() + timedelta(days=7))
                 days_future = (pd.to_datetime(target_date) - min_date).days
                 
                 # 予測用ダミーデータ作成（平均的な学習条件で予測）
@@ -3819,11 +3825,11 @@ if tab_selection == 'AI分析':
                     pred_accs = model_acc.predict(X_pred)
                     final_pred = np.mean(pred_accs)
                     
-                    st.metric("予測正答率", f"{final_pred:.1%}", delta=f"{(final_pred - cor_r):.1%}")
+                    st.metric(t("predicted_accuracy"), f"{final_pred:.1%}", delta=f"{(final_pred - cor_r):.1%}")
                     if final_pred >= tgt_r:
-                        sac.alert("目標達成圏内です", icon='check-circle', color='success', size='sm')
+                        sac.alert(t("goal_achievement_likely"), icon='check-circle', color='success', size='sm')
                     else:
-                        sac.alert("目標未達", icon='exclamation-circle', color='warning', size='sm')
+                        sac.alert(t("goal_not_achieved"), icon='exclamation-circle', color='warning', size='sm')
             
             with col_ai2:
                 # 予測推移グラフ（向こう30日）
@@ -3836,22 +3842,22 @@ if tab_selection == 'AI分析':
                     future_preds.append(np.mean(preds))
                 
                 fig_pred = px.line(x=[min_date + timedelta(days=d) for d in future_days], y=future_preds, 
-                                   labels={"x": "日付", "y": "予測正答率"}, title="向こう30日の成長予測")
-                fig_pred.add_hline(y=tgt_r, line_dash="dash", line_color="red", annotation_text="目標")
+                                   labels={"x": t("date"), "y": t("predicted_accuracy")}, title=t("30_day_growth_prediction"))
+                fig_pred.add_hline(y=tgt_r, line_dash="dash", line_color="red", annotation_text=t("goal"))
                 fig_pred.update_layout(height=250, margin=dict(l=20, r=20, t=30, b=20))
                 st.plotly_chart(fig_pred, use_container_width=True)
 
             # 2. 要因分析
-            sac.divider(label='パフォーマンス要因分析', icon='bar-chart-steps', align='left')
-            st.caption("正答率に影響を与えている重要な要素を分析します。")
+            sac.divider(label=t('performance_factor_analysis'), icon='bar-chart-steps', align='left')
+            st.caption(t("performance_factor_analysis_desc"))
             fig_imp = px.bar(importances, x="importance", y="feature", orientation="h", 
-                             title="正答率への影響度", labels={"importance": "重要度", "feature": "要因"})
+                             title=t("impact_on_accuracy"), labels={"importance": t("importance"), "feature": t("factor")})
             fig_imp.update_layout(height=200, margin=dict(l=20, r=20, t=30, b=20))
             st.plotly_chart(fig_imp, use_container_width=True)
             
             # 3. AIレコメンド
-            sac.divider(label='推奨学習カリキュラム', icon='journal-check', align='left')
-            st.caption("現在の実力に基づき、最も成長効率が良い（正答率 40-70%）単元を提案します。")
+            sac.divider(label=t('recommended_curriculum'), icon='journal-check', align='left')
+            st.caption(t("recommended_curriculum_desc"))
             
             # 全単元の現在の予測正答率を計算
             current_days = (datetime.today() - min_date).days
@@ -3862,24 +3868,24 @@ if tab_selection == 'AI分析':
                     u_c = le_unit.transform([row["単元"]])[0]
                     # 今日の予測
                     p = model_acc.predict([[current_days, s_c, u_c, avg_time, avg_study]])[0]
-                    recs.append({"科目": row["科目"], "単元": row["単元"], "予測正答率": p})
+                    recs.append({t("subject"): row["科目"], t("unit"): row["単元"], t("predicted_accuracy"): p})
                 except:
                     pass
             
             df_recs = pd.DataFrame(recs)
             # 成長ゾーン (40% - 75%)
-            df_growth = df_recs[(df_recs["予測正答率"] >= 0.4) & (df_recs["予測正答率"] <= 0.75)].sort_values("予測正答率")
+            df_growth = df_recs[(df_recs[t("predicted_accuracy")] >= 0.4) & (df_recs[t("predicted_accuracy")] <= 0.75)].sort_values(t("predicted_accuracy"))
             
             if not df_growth.empty:
                 for i, row in df_growth.head(3).iterrows():
-                    sac.alert(f"**{row['科目']} - {row['単元']}** (予測正答率: {row['予測正答率']:.1%})", icon='fire', color='info')
+                    sac.alert(f"**{row[t('subject')]} - {row[t('unit')]}** ({t('predicted_accuracy')}: {row[t('predicted_accuracy')]:.1%})", icon='fire', color='info')
             else:
-                sac.alert("成長ゾーンの単元が見当たりません。基礎固めか、難問への挑戦を推奨します。", icon='check2-circle', color='success')
+                sac.alert(t("no_growth_zone_units"), icon='check2-circle', color='success')
             
             # 4. 学習フロー可視化（Sankey Diagram）
             st.markdown("---")
-            sac.divider(label='学習フローの可視化', icon='diagram-3', align='left')
-            st.caption("科目から単元、そして結果（正解/不正解）への学習の流れを視覚化します。")
+            sac.divider(label=t('learning_flow_visualization'), icon='diagram-3', align='left')
+            st.caption(t("learning_flow_visualization_desc"))
             
             sankey_fig = generate_sankey_diagram(df)
             if sankey_fig:
@@ -3892,28 +3898,28 @@ if tab_selection == 'AI分析':
                             padding: 16px; border-radius: 12px; border-left: 4px solid {PRIMARY}; margin-top: 16px;">
                     <div style="font-weight: 600; color: #1f2937; margin-bottom: 8px;">
                         <i class="bi bi-lightbulb-fill" style="color: {PRIMARY}; margin-right: 8px;"></i>
-                        フロー分析インサイト
+                        {t('flow_analysis_insights')}
                     </div>
                     <div style="color: #374151; font-size: 0.9rem;">
-                        • 全体の正答率: <strong>{correct_rate:.1%}</strong><br>
-                        • 太い流れ = 多くの時間を費やした単元<br>
-                        • 緑の流れ = 成功パターン、赤の流れ = 改善の機会
+                        • {t('overall_accuracy_rate')}: <strong>{correct_rate:.1%}</strong><br>
+                        • {t('thick_flow_explanation')}<br>
+                        • {t('green_red_flow_explanation')}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                sac.alert("データが不足しています（最低5件必要）", icon='info-circle', color='info')
+                sac.alert(t("data_insufficient_sankey"), icon='info-circle', color='info')
 
-if tab_selection == '復習ノート':
-    sac.divider(label='復習ノート', icon='journal-bookmark', align='center')
-    st.write("間違えた問題や重要ポイントのメモを確認・編集できます。")
+if tab_selection == t("tab_review_notes"):
+    sac.divider(label=t('review_notes_title'), icon='journal-bookmark', align='center')
+    st.write(t("review_notes_desc"))
     
     if st.session_state.df_notes.empty:
-        sac.alert("メモがまだありません。学習データ入力時に「復習メモ」を記入してみましょう！", icon='info-circle', color='info')
+        sac.alert(t("no_notes_yet"), icon='info-circle', color='info')
     else:
         # 検索機能
-        st.markdown('<div style="margin-bottom:8px; font-weight:600; color:#374151;"><i class="bi bi-search" style="margin-right:6px; color:#3b82f6;"></i>検索（問題IDまたはメモ内容）</div>', unsafe_allow_html=True)
-        search_query = st.text_input("検索", placeholder="キーワードを入力...", label_visibility="collapsed")
+        st.markdown(f'<div style="margin-bottom:8px; font-weight:600; color:#374151;"><i class="bi bi-search" style="margin-right:6px; color:#3b82f6;"></i>{t("search_problem_id_or_memo")}</div>', unsafe_allow_html=True)
+        search_query = st.text_input(t("search"), placeholder=t("enter_keyword"), label_visibility="collapsed")
         
         # フィルタリング
         df_notes_display = st.session_state.df_notes.copy()
@@ -3922,7 +3928,7 @@ if tab_selection == '復習ノート':
                    (df_notes_display["メモ"].astype(str).str.contains(search_query, case=False, na=False))
             df_notes_display = df_notes_display[mask]
         
-        st.markdown(f"**全{len(df_notes_display)}件のメモ**")
+        st.markdown(f"**{t('total_notes').format(count=len(df_notes_display))}**")
         
         # 表示
         for idx, row in df_notes_display.iterrows():
@@ -3934,31 +3940,35 @@ if tab_selection == '復習ノート':
                     st.session_state.df_notes = st.session_state.df_notes.drop(idx_to_drop).reset_index(drop=True)
                     st.session_state.df_notes.to_csv(user_notes_path, index=False)
                     # sac.alertはrerunしないと消えないため、st.toastを使うか、rerunなしでUI更新を待つ
-                    st.toast("削除しました", icon="✅")
+                    st.toast(t("deleted"), icon="✅")
 
-                st.button("削除", key=f"del_note_{idx}", on_click=delete_note, args=(idx,))
+                st.button(t("delete"), key=f"del_note_{idx}", on_click=delete_note, args=(idx,))
 
-if tab_selection == '設定':
-    sac.divider(label='設定', icon='gear', align='center')
-    st.write("ダッシュボードの表示や動作を変更できます。")
+if tab_selection == t("tab_settings"):
+    sac.divider(label=t('settings'), icon='gear', align='center')
+    st.write(t("settings_desc"))
     
     # 言語設定
-    sac.divider(label='言語 / Language', icon='translate', align='left')
-    lang = st.selectbox("表示言語", ["日本語", "English"], index=0 if st.session_state.language == "日本語" else 1, key="lang_select")
+    sac.divider(label=t('language_settings_title'), icon='translate', align='left')
+    lang = st.selectbox(
+        t("display_language"),
+        ["日本語", "English", "簡体字"],
+        index=["日本語", "English", "簡体字"].index(st.session_state.get("language", "日本語")), key="lang_select"
+    )
     if st.session_state.language != lang:
         st.session_state.language = lang
         trigger_rerun()
 
     # 試験日設定
-    sac.divider(label='試験日設定', icon='calendar-event', align='left')
-    st.caption("試験日を設定すると、ヘッダーにカウントダウンが表示されます。")
-    edate = st.date_input("試験日", value=st.session_state.exam_date if st.session_state.exam_date else None, key="exam_date_input")
+    sac.divider(label=t('exam_date_settings'), icon='calendar-event', align='left')
+    st.caption(t("exam_date_countdown_desc"))
+    edate = st.date_input(t("exam_date"), value=st.session_state.exam_date if st.session_state.exam_date else None, key="exam_date_input")
     if st.session_state.exam_date != edate:
         st.session_state.exam_date = edate
         trigger_rerun()
 
     # テーマ設定
-    sac.divider(label='テーマカラー', icon='palette', align='left')
+    sac.divider(label=t('theme_color'), icon='palette', align='left')
     theme_keys = list(THEMES.keys())
     try:
         current_index = theme_keys.index(st.session_state.theme)
@@ -3966,18 +3976,18 @@ if tab_selection == '設定':
         current_index = 0
         st.session_state.theme = theme_keys[0]
         
-    th = st.selectbox("テーマを選択", theme_keys, index=current_index, key="theme_select")
+    th = st.selectbox(t("select_theme"), theme_keys, index=current_index, key="theme_select")
     if st.session_state.theme != th:
         st.session_state.theme = th
         trigger_rerun()
     
     # 表示モード設定
     st.markdown("---")
-    sac.divider(label='表示モード', icon='moon-stars', align='left')
-    st.caption("ダークモードの設定を変更できます")
+    sac.divider(label=t('display_mode'), icon='moon-stars', align='left')
+    st.caption(t("dark_mode_settings_desc"))
     
-    display_modes = ["ライトモード", "ダークモード", "システム設定"]
-    current_mode = st.session_state.get("display_mode", "システム設定")
+    display_modes = [t("light_mode"), t("dark_mode"), t("system_setting")]
+    current_mode = st.session_state.get("display_mode", t("system_setting"))
     
     try:
         mode_index = display_modes.index(current_mode)
@@ -3985,7 +3995,7 @@ if tab_selection == '設定':
         mode_index = 2  # デフォルト: システム設定
     
     selected_mode = st.selectbox(
-        "表示モードを選択",
+        t("select_display_mode"),
         display_modes,
         index=mode_index,
         key="display_mode_select"
@@ -3996,14 +4006,14 @@ if tab_selection == '設定':
         trigger_rerun()
 
     st.markdown("---")
-    keep = st.checkbox("データ入力フォームを送信後も開いたままにする", value=st.session_state.get("keep_input_open", True), key="keep_input_open_checkbox")
+    keep = st.checkbox(t("keep_input_form_open"), value=st.session_state.get("keep_input_open", True), key="keep_input_open_checkbox")
     st.session_state.keep_input_open = keep
     
     # 週報レポート生成
-    sac.divider(label='週報レポート生成', icon='file-earmark-text', align='left')
-    st.caption("過去7日間の学習成果をレポート形式で出力します。")
+    sac.divider(label=t('weekly_report_generation'), icon='file-earmark-text', align='left')
+    st.caption(t("weekly_report_desc"))
     
-    if st.button("レポートを生成", type="primary", use_container_width=True):
+    if st.button(t("generate_report"), type="primary", use_container_width=True):
         report = generate_weekly_report(df)
         st.markdown(report, unsafe_allow_html=True)
         
@@ -4011,28 +4021,28 @@ if tab_selection == '設定':
         col_dl1, col_dl2, col_dl3 = st.columns(3)
         
         with col_dl1:
-            st.text_area("コピー用", value=report, height=200, key="weekly_report_copy")
+            st.text_area(t("copy_for_clipboard"), value=report, height=200, key="weekly_report_copy")
         
         with col_dl2:
             # PDF出力
             pdf_data = generate_pdf_report(report, st.session_state.current_user)
             if pdf_data:
                 st.download_button(
-                    label="📄 PDFでダウンロード",
+                    label=t("download_pdf"),
                     data=pdf_data,
                     file_name=f"weekly_report_{st.session_state.current_user}_{datetime.now().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf",
                     use_container_width=True
                 )
             else:
-                st.info("PDF出力には追加ライブラリが必要です")
+                st.info(t("additional_libs_for_pdf"))
         
         with col_dl3:
             # Excel出力（学習データ）
             excel_data = generate_excel_report(df, st.session_state.current_user)
             if excel_data:
                 st.download_button(
-                    label="📊 Excelでダウンロード",
+                    label=t("download_excel"),
                     data=excel_data,
                     file_name=f"learning_data_{st.session_state.current_user}_{datetime.now().strftime('%Y%m%d')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
