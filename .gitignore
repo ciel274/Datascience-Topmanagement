@@ -1,0 +1,9 @@
+# Secrets
+streamlit_dashboard/token.json
+streamlit_dashboard/client_secret.json
+.streamlit/secrets.toml
+
+# System
+.DS_Store
+__pycache__/
+*.pyc
