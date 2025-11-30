@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import LabelEncoder
 import streamlit_antd_components as sac
 import google_calendar_utils
-import translations as tr
+import app_translations as tr
 
 def t(key):
     return tr.get_text(key, st.session_state.get("language", "日本語"))
