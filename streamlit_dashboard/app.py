@@ -2572,9 +2572,9 @@ if not df.empty:
     with ac1:
         tu = agg.iloc[0] if not agg.empty else None
         if tu is not None:
-            tr = tu["正答率"]
+            top_unit_accuracy = tu["正答率"]
             tc = cau.iloc[0][t("cause")] if not cau.empty else t("unknown")
-            rsn = f"{t('accuracy_rate')}{tr:.0%}。" + (t("time_shortage_issue") if te > 0.3 else f"「{tc}」{t('main_cause_review_field')}")
+            rsn = f"{t('accuracy_rate')}{top_unit_accuracy:.0%}。" + (t("time_shortage_issue") if te > 0.3 else f"「{tc}」{t('main_cause_review_field')}")
             
             st.markdown(f"""
             <div class="action-card" style="height: 100%;">
