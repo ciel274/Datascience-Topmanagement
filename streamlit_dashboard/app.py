@@ -13,11 +13,13 @@ from sklearn.preprocessing import LabelEncoder
 import streamlit_antd_components as sac
 import google_calendar_utils
 import app_translations as tr
+import urllib.parse
 
 def t(key):
     return tr.get_text(key, st.session_state.get("language", "日本語"))
 
-
+def dt(text):
+    return tr.get_data_text(text, st.session_state.get("language", "日本語"))
 
 # --- 安全な再実行トリガ（環境差分を吸収） ---
 def trigger_rerun():
@@ -156,7 +158,7 @@ def generate_weekly_study_plan(df, exam_date, target_rate, current_rate):
         reviews = review_candidates.get(date, [])
         for unit in reviews:
             if current_time + unit_time_mins <= daily_limit_mins:
-                todays_units.append({"name": unit, "type": "復習"})
+                todays_units.append({"name": dt(unit), "type": t("plan_review")})
                 current_time += unit_time_mins
         
         # B. 時間が余っていれば弱点単元を追加
@@ -164,8 +166,8 @@ def generate_weekly_study_plan(df, exam_date, target_rate, current_rate):
         while current_time + unit_time_mins <= daily_limit_mins and weak_idx < len(weak_list):
             unit = weak_list[weak_idx]
             # まだリストになければ追加
-            if not any(u["name"] == unit for u in todays_units):
-                todays_units.append({"name": unit, "type": "弱点"})
+            if not any(u["name"] == dt(unit) for u in todays_units):
+                todays_units.append({"name": dt(unit), "type": t("plan_weakness")})
                 current_time += unit_time_mins
             weak_idx += 1
             
@@ -174,8 +176,8 @@ def generate_weekly_study_plan(df, exam_date, target_rate, current_rate):
         while current_time + unit_time_mins <= daily_limit_mins:
              if weak_idx < len(weak_list):
                 unit = weak_list[weak_idx]
-                if not any(u["name"] == unit for u in todays_units):
-                    todays_units.append({"name": unit, "type": "学習"})
+                if not any(u["name"] == dt(unit) for u in todays_units):
+                    todays_units.append({"name": dt(unit), "type": t("study")})
                     current_time += unit_time_mins
                 weak_idx += 1
              else:
@@ -197,23 +199,23 @@ def generate_ai_advice(current_rate, target_rate, time_excess_rate, streak_days)
     
     # 1. 正答率に基づくアドバイス
     if current_rate >= target_rate:
-        advices.append(("<i class='bi bi-star-fill' style='color:#fbbf24;'></i>", "素晴らしい正答率です！この調子で難易度の高い問題にも挑戦してみましょう。"))
+        advices.append(("<i class='bi bi-star-fill' style='color:#fbbf24;'></i>", t("ai_advice_high_accuracy")))
     elif current_rate >= target_rate - 0.1:
-        advices.append(("<i class='bi bi-fire' style='color:#f97316;'></i>", "目標まであと少し！苦手な単元をピンポイントで復習すれば届きます。"))
+        advices.append(("<i class='bi bi-fire' style='color:#f97316;'></i>", t("ai_advice_almost_there")))
     else:
-        advices.append(("<i class='bi bi-lightbulb-fill' style='color:#f59e0b;'></i>", "まずは基礎固めから。正答率の低い単元を重点的に見直しましょう。"))
+        advices.append(("<i class='bi bi-lightbulb-fill' style='color:#f59e0b;'></i>", t("ai_advice_needs_work")))
         
     # 2. 解答時間に基づくアドバイス
     if time_excess_rate > 0.3:
-        advices.append(("<i class='bi bi-stopwatch' style='color:#6b7280;'></i>", "少し時間がかかっているようです。問題を解くスピードを意識してみましょう。"))
+        advices.append(("<i class='bi bi-stopwatch' style='color:#6b7280;'></i>", t("ai_advice_slow")))
     elif time_excess_rate < 0.1:
-        advices.append(("<i class='bi bi-lightning-charge-fill' style='color:#eab308;'></i>", "解答スピードは完璧です！ケアレスミスにだけ注意してください。"))
+        advices.append(("<i class='bi bi-lightning-charge-fill' style='color:#eab308;'></i>", t("ai_advice_fast")))
         
     # 3. 継続日数に基づくアドバイス
     if streak_days >= 3:
-        advices.append(("<i class='bi bi-calendar-check-fill' style='color:#ef4444;'></i>", f"{streak_days}日連続学習中！習慣化の達人ですね。"))
+        advices.append(("<i class='bi bi-calendar-check-fill' style='color:#ef4444;'></i>", t("ai_advice_streak").format(streak_days)))
     elif streak_days == 0:
-        advices.append(("<i class='bi bi-megaphone-fill' style='color:#3b82f6;'></i>", "今日はまだ学習記録がありません。1問だけでも解いてみませんか？"))
+        advices.append(("<i class='bi bi-megaphone-fill' style='color:#3b82f6;'></i>", t("ai_advice_no_study")))
         
     # ランダムに1つ、または状況に合わせて結合して返す
     # ここではメインのアドバイス（正答率）とサブアドバイスを組み合わせる
@@ -423,17 +425,28 @@ def generate_calendar_heatmap(df, year, month, exam_date=None, weekly_plan=None)
         
         # HTMLカレンダーを生成
         month_cal = cal.monthcalendar(year, month)
-        month_name = f"{year}年{month}月"
+        if st.session_state.language == "English":
+             # Use standard English format: "December 2025"
+             month_name = datetime(year, month, 1).strftime("%B %Y")
+        else:
+             month_name = t("month_format").format(year, month)
+             
         today = datetime.today().date()
         
         html = f'''
         <div class="calendar-single">
+            <div class="calendar-header">
+                <div class="calendar-title">{month_name}</div>
+                <div class="calendar-nav">
+                    <!-- Navigation buttons handled by Streamlit buttons outside HTML -->
+                </div>
+            </div>
             <table class="calendar-table">
                 <tr>
         '''
         
         # 曜日ヘッダー
-        weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+        weekdays = t("weekdays")
         for wd in weekdays:
             html += f'<th class="calendar-weekday">{wd}</th>'
         html += "</tr>"
@@ -464,8 +477,8 @@ def generate_calendar_heatmap(df, year, month, exam_date=None, weekly_plan=None)
                     if is_exam_date:
                         # 試験日
                         css_class = "exam-date"
-                        tooltip = f"{date.strftime('%Y年%m月%d日')}: 🎯試験日"
-                        badge = '<span class="exam-badge">試験</span>'
+                        tooltip = f"{date.strftime(t('date_format'))}: 🎯{t('exam_date')}"
+                        badge = f'<span class="exam-badge">{t("exam_date")}</span>'
                     elif is_past or is_today:
                         # 過去/今日 - 学習データを表示
                         if date in daily_stats_dict:
@@ -486,12 +499,12 @@ def generate_calendar_heatmap(df, year, month, exam_date=None, weekly_plan=None)
                                 level = 4
                             
                             css_class = f"study-level-{level}"
-                            tooltip = f"{date.strftime('%Y年%m月%d日')}: {problems}問, 正答率{accuracy:.0f}%, {int(study_time)}分"
+                            tooltip = f"{date.strftime(t('date_format'))}: {problems}{t('questions_unit')}, {t('accuracy_rate')}{accuracy:.0f}%, {int(study_time)}{t('minutes_unit')}"
                             # 絵文字をBootstrap Iconに変更
                             indicator = '<i class="bi bi-check-lg"></i>' if problems > 0 else ""
                         else:
                             css_class = "study-level-0"
-                            tooltip = f"{date.strftime('%Y年%m月%d日')}: 学習なし"
+                            tooltip = f"{date.strftime(t('date_format'))}: {t('no_data')}"
                         badge = ""
                     else:
                         # 未来 - 週間プランを表示
@@ -500,12 +513,12 @@ def generate_calendar_heatmap(df, year, month, exam_date=None, weekly_plan=None)
                         
                         if plan_count > 0:
                             css_class = "future-plan"
-                            tooltip = f"{date.strftime('%Y年%m月%d日')}: 📝学習予定 {plan_count}単元"
+                            tooltip = f"{date.strftime(t('date_format'))}: 📝{t('plan_review')} {plan_count}{t('unit')}"
                             # 絵文字をBootstrap Iconに変更
                             indicator = f'<i class="bi bi-pencil-fill" style="color:#3b82f6; font-size:0.7rem;"></i> <span style="color:#3b82f6;">{plan_count}</span>'
                         else:
                             css_class = "future-no-plan"
-                            tooltip = f"{date.strftime('%Y年%m月%d日')}: 予定なし"
+                            tooltip = f"{date.strftime(t('date_format'))}: {t('no_change')}"
                         badge = ""
                     
                     html += f'''
@@ -528,7 +541,7 @@ def generate_calendar_heatmap(df, year, month, exam_date=None, weekly_plan=None)
         return css, html
         
     except Exception as e:
-        import streamlit as st # streamlit import added for st.error
+        # st is globally imported
         st.error(f"カレンダーヒートマップの生成エラー: {e}")
         import traceback
         st.error(traceback.format_exc())
@@ -592,7 +605,7 @@ def generate_detailed_insights(df, current_rate, target_rate, exam_date=None):
                 "category": "弱点分析",
                 "icon": "exclamation-triangle",
                 "priority": "high",
-                "message": f"**{worst_unit}**が最大の弱点です（正答率{worst_accuracy:.1%}）。{advice}"
+                "message": f"**{dt(worst_unit)}**が最大の弱点です（正答率{worst_accuracy:.1%}）。{advice}"
             })
     
     # 3. ペース分析
@@ -609,21 +622,21 @@ def generate_detailed_insights(df, current_rate, target_rate, exam_date=None):
                     "category": "進捗管理",
                     "icon": "speedometer",
                     "priority": "urgent",
-                    "message": f"⚠️ **要注意**: 残り{days_left}日で{gap:.1%}の改善が必要です。1日あたり{required_daily_improvement:.2%}のペースで向上が必要です。集中学習を推奨します。"
+                    "message": t("insight_urgent_warning").format(days_left=days_left, gap=gap*100, required_daily_improvement=required_daily_improvement*100)
                 })
             elif gap > 0 and days_left >= 30:
                 insights.append({
                     "category": "進捗管理",
                     "icon": "graph-up",
                     "priority": "medium",
-                    "message": f"残り{days_left}日で目標達成可能です。現在のペースを維持しながら、弱点補強を進めましょう。"
+                    "message": t("insight_on_track").format(days_left)
                 })
             elif gap <= 0:
                 insights.append({
                     "category": "進捗管理",
                     "icon": "trophy",
                     "priority": "low",
-                    "message": "🎉 **目標達成済み**！現在の実力を維持しつつ、難易度の高い問題にチャレンジしましょう。"
+                    "message": t("insight_goal_achieved")
                 })
     
     # 4. 比較分析（直近1週間 vs 前週）
@@ -646,14 +659,14 @@ def generate_detailed_insights(df, current_rate, target_rate, exam_date=None):
                     "category": "成長記録",
                     "icon": "arrow-up-circle",
                     "priority": "medium",
-                    "message": f"📈 **素晴らしい成長**！先週比+{improvement:.1%}の改善です。この調子で継続しましょう。"
+                    "message": t("insight_growth").format(improvement*100)
                 })
             elif improvement < -0.05:
                 insights.append({
                     "category": "成長記録",
                     "icon": "arrow-down-circle",
                     "priority": "medium",
-                    "message": f"先週比-{abs(improvement):.1%}の低下が見られます。休息が必要かもしれません。無理せず、基礎の復習に戻りましょう。"
+                    "message": t("insight_decline").format(abs(improvement)*100)
                 })
     
     # 5. 時間管理分析
@@ -665,14 +678,14 @@ def generate_detailed_insights(df, current_rate, target_rate, exam_date=None):
                 "category": "時間管理",
                 "icon": "hourglass-split",
                 "priority": "medium",
-                "message": f"平均{time_excess:.0f}秒超過しています。「速さより正確さ」から「スピード重視」にシフトする時期かもしれません。"
+                "message": t("insight_time_over").format(time_excess=time_excess)
             })
         elif time_excess < -5:
             insights.append({
                 "category": "時間管理",
                 "icon": "lightning",
                 "priority": "low",
-                "message": "解答スピードは十分です。ケアレスミス防止のための見直し時間を確保しましょう。"
+                "message": t("insight_time_good")
             })
     
     return insights
@@ -705,9 +718,9 @@ def generate_roadmap(exam_date, current_rate, target_rate):
     
     # データフレーム作成
     data = [
-        dict(Task="基礎固め期", Start=today, Finish=today + timedelta(days=base_days), Phase="Foundation"),
-        dict(Task="応用演習期", Start=today + timedelta(days=base_days), Finish=today + timedelta(days=base_days + practice_days), Phase="Practice"),
-        dict(Task="直前対策期", Start=today + timedelta(days=base_days + practice_days), Finish=exam_date, Phase="Final")
+        dict(Task=t("timeline_foundation"), Start=today, Finish=today + timedelta(days=base_days), Phase="Foundation"),
+        dict(Task=t("timeline_applied"), Start=today + timedelta(days=base_days), Finish=today + timedelta(days=base_days + practice_days), Phase="Practice"),
+        dict(Task=t("timeline_final"), Start=today + timedelta(days=base_days + practice_days), Finish=exam_date, Phase="Final")
     ]
     
     df_gantt = pd.DataFrame(data)
@@ -824,14 +837,14 @@ def generate_study_roadmap_detailed(df, df_master):
                 if not unsolved_medium.empty:
                     top_units = unsolved_medium["単元"].value_counts().head(3).index.tolist()
                     next_recommendations = [
-                        f"次は「{top_units[0]}」に挑戦しましょう",
-                        "標準問題の正答率80%を目指しましょう",
-                        f"現在のカバー率: {difficulty_stats['中']['coverage']:.0f}%"
+                        t("rec_next_challenge").format(dt(top_units[0])),
+                        t("rec_aim_standard_80"),
+                        t("rec_current_coverage").format(difficulty_stats['中']['coverage'])
                     ]
                 else:
                     next_recommendations = [
-                        "標準問題をもう一度復習しましょう",
-                        "正答率80%を安定させることが目標です"
+                        t("rec_review_standard"),
+                        t("rec_aim_stable_80")
                     ]
         else:
             current_phase = "基礎固め"
@@ -843,14 +856,14 @@ def generate_study_roadmap_detailed(df, df_master):
             if not unsolved_low.empty:
                 top_units = unsolved_low["単元"].value_counts().head(3).index.tolist()
                 next_recommendations = [
-                    f"まずは「{top_units[0]}」から始めましょう",
-                    "基礎問題の正答率80%を目指しましょう",
-                    f"現在のカバー率: {difficulty_stats['低']['coverage']:.0f}%"
+                    t("rec_start_basic").format(dt(top_units[0])),
+                    t("rec_aim_basic_80"),
+                    t("rec_current_coverage").format(difficulty_stats['低']['coverage'])
                 ]
             else:
                 next_recommendations = [
-                    "基礎問題を復習して定着度を上げましょう",
-                    "正答率80%を安定させることが重要です"
+                    t("rec_review_basic"),
+                    t("rec_aim_stable_80")
                 ]
         
         # ビジュアライゼーション用データ作成
@@ -862,9 +875,9 @@ def generate_study_roadmap_detailed(df, df_master):
                 difficulty_stats["高"]["coverage"]
             ],
             "units": [
-                difficulty_stats["低"]["units"],
-                difficulty_stats["中"]["units"],
-                difficulty_stats["高"]["units"]
+                [dt(u) for u in difficulty_stats["低"]["units"]],
+                [dt(u) for u in difficulty_stats["中"]["units"]],
+                [dt(u) for u in difficulty_stats["高"]["units"]]
             ],
             "accuracy": [
                 difficulty_stats["低"]["accuracy"] * 100,
@@ -902,6 +915,10 @@ def generate_sankey_diagram(df):
     
     # ノードリスト作成（科目 → 単元 → 結果の順）
     node_labels = subjects + units + results
+    
+    # 表示用ラベル（翻訳）
+    node_labels_display = [dt(s) for s in subjects] + [dt(u) for u in units] + [t("correct"), t("incorrect")]
+    
     node_colors = []
     
     # 科目の色（青系）
@@ -964,7 +981,7 @@ def generate_sankey_diagram(df):
             pad=15,
             thickness=20,
             line=dict(color="white", width=2),
-            label=node_labels,
+            label=node_labels_display,
             color=node_colors,
             hovertemplate='%{label}: %{value}問<extra></extra>'
         ),
@@ -2057,7 +2074,7 @@ if "df_master" not in st.session_state:
 expanded_flag = st.session_state.get("expander_open", st.session_state.get("keep_input_open", True))
 with st.sidebar.expander(t("input_data_title"), expanded=expanded_flag):
     st.markdown(f"<p class='input-label'>{t('date')}</p>", unsafe_allow_html=True)
-    dt = st.date_input(t("date"), datetime.today(), label_visibility="collapsed", key="dt_input")
+    input_date = st.date_input(t("date"), datetime.today(), label_visibility="collapsed", key="dt_input")
     
     # マスタデータ使用
     df_master_use = st.session_state.df_master
@@ -2065,7 +2082,7 @@ with st.sidebar.expander(t("input_data_title"), expanded=expanded_flag):
     subjs = sorted(df_master_use["科目"].unique().tolist())
     # セッションステートからインデックスを復元
     subj_idx = subjs.index(st.session_state.subj) if st.session_state.subj in subjs else 0
-    sel_subj = st.selectbox(t("subject"), subjs, index=subj_idx, label_visibility="collapsed", key="s1")
+    sel_subj = st.selectbox(t("subject"), subjs, index=subj_idx, label_visibility="collapsed", key="s1", format_func=dt)
     
     # 科目変更時のみリセット
     if st.session_state.subj != sel_subj:
@@ -2076,7 +2093,7 @@ with st.sidebar.expander(t("input_data_title"), expanded=expanded_flag):
     
     gens = ["選択"] + sorted(df_master_use[df_master_use["科目"] == st.session_state.subj]["ジャンル"].unique().tolist())
     gen_idx = gens.index(st.session_state.gen) if st.session_state.gen in gens else 0
-    sel_gen = st.selectbox(t("genre"), gens, index=gen_idx, label_visibility="collapsed", key="g1")
+    sel_gen = st.selectbox(t("genre"), gens, index=gen_idx, label_visibility="collapsed", key="g1", format_func=lambda x: t("select") if x == "選択" else dt(x))
     
     if st.session_state.gen != sel_gen:
         st.session_state.gen = sel_gen
@@ -2088,9 +2105,9 @@ with st.sidebar.expander(t("input_data_title"), expanded=expanded_flag):
     else:
         unis = []
     
-    unis = [t("select")] + unis
+    unis = ["選択"] + unis
     uni_idx = unis.index(st.session_state.uni) if st.session_state.uni in unis else 0
-    sel_uni = st.selectbox(t("unit"), unis, index=uni_idx, label_visibility="collapsed", key="u1")
+    sel_uni = st.selectbox(t("unit"), unis, index=uni_idx, label_visibility="collapsed", key="u1", format_func=lambda x: t("select") if x == "選択" else dt(x))
     
     if st.session_state.uni != sel_uni:
         st.session_state.uni = sel_uni
@@ -2098,7 +2115,7 @@ with st.sidebar.expander(t("input_data_title"), expanded=expanded_flag):
     ids = df_master_use[(df_master_use["科目"] == st.session_state.subj) & 
                     (df_master_use["ジャンル"] == st.session_state.gen) & 
                     (df_master_use["単元"] == st.session_state.uni)]["問題ID"].tolist() if (
-                    st.session_state.uni and st.session_state.uni != t("select")) else []
+                    st.session_state.uni and st.session_state.uni != "選択") else []
     
     pid = ids[0] if ids else ""
     st.caption(f"{t('problem_id')}: **{pid or t('not_selected')}**")
@@ -2453,7 +2470,7 @@ try:
         genre_stats["acc"] = (genre_stats["count"] - genre_stats["sum"]) / genre_stats["count"]
         for g_name, row in genre_stats.iterrows():
             if row["count"] >= 5 and row["acc"] >= 0.8:
-                badges.append(f"<i class='bi bi-trophy-fill'></i> {g_name}{t('master_suffix')}")
+                badges.append(f"<i class='bi bi-trophy-fill'></i> {dt(g_name)}{t('master_suffix')}")
 
     # 4. スピードスター (平均解答時間が目標の80%以下 & 正答率80%以上)
     if att >= 10 and cor_r >= 0.8:
@@ -2515,6 +2532,7 @@ st.markdown(
 if not df.empty:
     cau = df[df["ミス"] == 1]["ミスの原因"].value_counts().reset_index()
     cau.columns = [t("cause"), t("count")]
+    cau[t("cause")] = cau[t("cause")].apply(t)
 
     # --- 3. 合格ライン到達予測 (Linear Regression) ---
     prediction_text = t("data_insufficient")
@@ -2576,19 +2594,36 @@ if not df.empty:
             tc = cau.iloc[0][t("cause")] if not cau.empty else t("unknown")
             rsn = f"{t('accuracy_rate')}{top_unit_accuracy:.0%}。" + (t("time_shortage_issue") if te > 0.3 else f"「{tc}」{t('main_cause_review_field')}")
             
+            # 検索用URL生成
+            unit_name = tu['単元']
+            encoded_unit = urllib.parse.quote(f"SPI {unit_name}")
+            
             st.markdown(f"""
-            <div class="action-card" style="height: 100%;">
-              <div class="action-icon"><i class="bi bi-lightning-charge-fill"></i></div>
-              <div class="action-content">
-                <div class="action-header">
-                  <div class="action-title">{t('next_week_focus_unit')}</div>
-                  <div class="priority-badge">{t('highest_priority')}</div>
-                </div>
-                <div class="action-unit">{tu['単元']}</div>
-                <div class="action-reason">{rsn}</div>
-              </div>
+<div class="action-card" style="height: 100%;">
+  <div class="action-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+  <div class="action-content">
+    <div class="action-header">
+      <div class="action-title">{t('next_week_focus_unit')}</div>
+      <div class="priority-badge">{t('highest_priority')}</div>
+    </div>
+    <div class="action-unit">{dt(unit_name)}</div>
+    <div class="action-reason">{rsn}</div>
+    
+    <div style="margin-top: 12px; display: flex; gap: 8px;">
+        <a href="https://www.youtube.com/results?search_query={encoded_unit}" target="_blank" style="text-decoration: none;">
+            <div style="background: #FF0000; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s;">
+                <i class="bi bi-youtube"></i> YouTube
             </div>
-            """, unsafe_allow_html=True)
+        </a>
+        <a href="https://www.google.com/search?q={encoded_unit}+解説" target="_blank" style="text-decoration: none;">
+            <div style="background: #4285F4; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s;">
+                <i class="bi bi-google"></i> Google
+            </div>
+        </a>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
     with ac2:
         # 1. 本日の学習メニュー提案
@@ -2610,7 +2645,7 @@ if not df.empty:
                 q_count = max(1, min(5, int(row["優先度"] * 4)))
                 st.markdown(f"""
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px dashed #e5e7eb; padding-bottom:4px;">
-                    <span style="font-weight:700; color:#374151;">{i+1}. {row['単元']}</span>
+                    <span style="font-weight:700; color:#374151;">{i+1}. {dt(row['単元'])}</span>
                     <span style="font-weight:800; color:{PRIMARY};">{q_count}{t('questions_unit')}</span>
                 </div>
                 """, unsafe_allow_html=True)
@@ -2944,12 +2979,21 @@ if tab_selection == t("tab_dashboard"):
         
         if roadmap_data and current_phase and recommendations:
             # 現在のフェーズを強調表示
+            # キーは日本語（ロジックが返す値）で定義
             phase_colors = {
-                t("basic_consolidation"): "#3B82F6",
-                t("standard_practice"): "#8B5CF6",
-                t("advanced_practice"): "#EC4899"
+                "基礎固め": "#3B82F6",
+                "標準演習": "#8B5CF6",
+                "応用演習": "#EC4899"
             }
             current_color = phase_colors.get(current_phase, "#6B7280")
+            
+            # 表示用に翻訳
+            phase_map = {
+                "基礎固め": t("phase_foundation"),
+                "標準演習": t("phase_standard"),
+                "応用演習": t("phase_advanced")
+            }
+            display_phase = phase_map.get(current_phase, current_phase)
             
             st.markdown(f"""
             <div style="
@@ -2961,7 +3005,7 @@ if tab_selection == t("tab_dashboard"):
             ">
                 <div style="font-size: 0.9rem; color: #64748b; font-weight: 600;">{t('current_phase')}</div>
                 <div style="font-size: 1.5rem; font-weight: 800; color: {current_color}; margin-top: 4px;">
-                    {current_phase}
+                    {display_phase}
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -2969,27 +3013,33 @@ if tab_selection == t("tab_dashboard"):
             # 進捗バーを3つ表示
             col1, col2, col3 = st.columns(3)
             
-            for idx, (col, phase) in enumerate([(col1, t("basic_consolidation")), (col2, t("standard_practice")), (col3, t("advanced_practice"))]):
+            for idx, (col, phase_key) in enumerate([(col1, "基礎固め"), (col2, "標準演習"), (col3, "応用演習")]):
                 with col:
                     progress = roadmap_data["progress"][idx]
                     accuracy = roadmap_data["accuracy"][idx]
                     status = roadmap_data["status"][idx]
                     
-                    # ステータスに応じた色とアイコン
-                    if status == t("completed"):
+                    # ステータスに応じた色とアイコン（日本語で判定）
+                    if status == "完了":
                         status_color = "#10B981"
                         status_icon = '<i class="bi bi-check-circle-fill" style="color:#10B981;"></i>'
                         status_text_color = "#10B981"
-                    elif status == t("in_progress"):
+                        display_status = t("completed")
+                    elif status == "進行中":
                         status_color = "#F59E0B"
                         status_icon = '<i class="bi bi-arrow-repeat" style="color:#F59E0B;"></i>'
                         status_text_color = "#F59E0B"
+                        display_status = t("in_progress")
                     else:
                         status_color = "#9CA3AF"
                         status_icon = '<i class="bi bi-pause-circle" style="color:#9CA3AF;"></i>'
                         status_text_color = "#9CA3AF"
+                        display_status = t("not_started")
                     
                     units_list = "<br>".join([f"・{u}" for u in roadmap_data["units"][idx]])
+                    
+                    # フェーズ名の表示用翻訳
+                    display_phase_title = phase_map.get(phase_key, phase_key)
                     
                     st.markdown(f"""
                     <style>
@@ -3051,11 +3101,10 @@ if tab_selection == t("tab_dashboard"):
                         </div>
                         <div style="font-size: 1.5rem; margin-bottom: 8px;">{status_icon}</div>
                         <div style="font-weight: 700; font-size: 1rem; color: #1f2937; margin-bottom: 8px;">
-                            {phase}
-                        </div>
+                            {display_phase_title}
                         </div>
                         <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
-                            {t('coverage_rate')}: {progress:.0f}%
+                            {t('coverage')}: {progress:.0f}%
                         </div>
                         <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 8px;">
                             {t('accuracy_rate')}: {accuracy:.0f}%
@@ -3199,6 +3248,7 @@ if tab_selection == t("tab_dashboard"):
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
+
                                     # チェックボックス
                                     for unit_info in plan_data['units']:
                                         unit_name = unit_info["name"]
@@ -3354,12 +3404,13 @@ if tab_selection == t("tab_dashboard"):
             st.markdown(f'<div class="chart-header"><i class="bi bi-list-check icon-badge"></i>{t("top_5_priority_units")}</div>', unsafe_allow_html=True)
             t5 = agg.head(5).reset_index(drop=True)
             if not t5.empty:
+                t5["単元_label"] = t5["単元"].apply(dt)
                 max_v = max(t5["優先度"].max(), 1.0)
                 pad = max_v * 0.18
                 x_max = max_v + pad
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
-                    y=t5["単元"],
+                    y=t5["単元_label"],
                     x=[x_max] * len(t5),
                     orientation='h',
                     marker=dict(color='rgba(234,239,243,0.95)'),
@@ -3367,7 +3418,7 @@ if tab_selection == t("tab_dashboard"):
                     showlegend=False
                 ))
                 fig.add_trace(go.Bar(
-                    y=t5["単元"],
+                    y=t5["単元_label"],
                     x=t5["優先度"],
                     orientation='h',
                     marker=dict(color=PRIMARY, line=dict(color='rgba(0,0,0,0.06)', width=0)),
@@ -3519,6 +3570,10 @@ if tab_selection == t("tab_dashboard"):
             heatmap_data["正答率"] = (heatmap_data["count"] - heatmap_data["sum"]) / heatmap_data["count"]
             heatmap_matrix = heatmap_data.pivot(index="ジャンル", columns="科目", values="正答率")
             
+            # 翻訳適用
+            heatmap_matrix.index = [dt(idx) for idx in heatmap_matrix.index]
+            heatmap_matrix.columns = [dt(col) for col in heatmap_matrix.columns]
+            
             fig_heat = px.imshow(
                 heatmap_matrix,
                 labels=dict(x=t("subject"), y=t("genre"), color=t("accuracy_rate")),
@@ -3642,7 +3697,42 @@ if tab_selection == t("tab_dashboard"):
                 else:
                     units["正答率"] = (units["count"] - units["sum"]) / units["count"]
                     units = units.sort_values("正答率", ascending=False).reset_index(drop=True)
-                    st.dataframe(units[[t("unit"), t("accuracy_rate"), t("count")]].rename(columns={t("count"): t("attempts")}), use_container_width=True)
+                    
+                    # Translate unit names
+                    # Keep original for search query if needed, but here we use translated for simplicity or add logic
+                    # Actually, for better search results in Japan, maybe we should keep Japanese?
+                    # But the user might be English speaker.
+                    # Let's use the translated name for now.
+                    units["単元"] = units["単元"].apply(dt)
+                    
+                    # Add search link
+                    units["link"] = units["単元"].apply(lambda x: f"https://www.youtube.com/results?search_query={urllib.parse.quote('SPI ' + x)}")
+                    
+                    # Select raw columns and rename for display
+                    st.dataframe(
+                        units[["単元", "正答率", "count", "link"]].rename(
+                            columns={
+                                "単元": t("unit"), 
+                                "正答率": t("accuracy_rate"), 
+                                "count": t("attempts"),
+                                "link": t("resources")
+                            }
+                        ),
+                        column_config={
+                            t("resources"): st.column_config.LinkColumn(
+                                t("resources"),
+                                display_text=t("watch_video")
+                            ),
+                            t("accuracy_rate"): st.column_config.ProgressColumn(
+                                t("accuracy_rate"),
+                                format="%.0f%%",
+                                min_value=0,
+                                max_value=1
+                            )
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
                     fig_units = go.Figure(go.Bar(
                         x=units["正答率"],

@@ -99,10 +99,32 @@ TRANSLATIONS = {
         "plan_prev": "← 前の日程",
         "plan_next": "次の日程 →",
         
-        "next_week_focus": "次週の重点単元",
+        "next_week_focus": "来週の重点単元",
         "priority_highest": "最優先",
-        "todays_menu": "本日の学習メニュー",
-        "recommended": "おすすめ",
+        "todays_menu": "本日のメニュー",
+        "recommended": "推奨",
+        
+        # Roadmap Recommendations
+        "rec_next_challenge": "次は「{}」に挑戦しましょう",
+        "rec_aim_standard_80": "標準問題の正答率80%を目指しましょう",
+        "rec_current_coverage": "現在のカバー率: {:.0f}%",
+        "rec_review_standard": "標準問題をもう一度復習しましょう",
+        "rec_aim_stable_80": "正答率80%を安定させることが目標です",
+        "rec_start_basic": "まずは「{}」から始めましょう",
+        "rec_aim_basic_80": "基礎問題の正答率80%を目指しましょう",
+        "rec_review_basic": "基礎問題を復習して定着度を上げましょう",
+        "rec_continue_advanced": "応用問題を継続して解きましょう",
+        "rec_aim_advanced_accuracy": "高難易度問題の正答率向上を目指しましょう",
+        "rec_focus_speed": "解答時間の短縮にも意識を向けましょう",
+        
+        # Weekly Plan Items
+        "plan_review": "復習",
+        "plan_weakness": "弱点",
+        
+        # Timeline Phases
+        "timeline_foundation": "基礎固め期",
+        "timeline_applied": "応用演習期",
+        "timeline_final": "直前対策期",
         
         # Data List Tab
         "filter_condition": "絞り込み条件",
@@ -338,6 +360,39 @@ TRANSLATIONS = {
         "copy_for_clipboard": "コピー用",
         "download_pdf": "📄 PDFでダウンロード",
         "additional_libs_for_pdf": "PDF出力には追加ライブラリが必要です",
+        
+        # AI Advice
+        "ai_advice_high_accuracy": "素晴らしい正答率です！この調子で難易度の高い問題にも挑戦してみましょう。",
+        "ai_advice_almost_there": "目標まであと少し！苦手な単元をピンポイントで復習すれば届きます。",
+        "ai_advice_needs_work": "まずは基礎固めから。正答率の低い単元を重点的に見直しましょう。",
+        "ai_advice_slow": "少し時間がかかっているようです。問題を解くスピードを意識してみましょう。",
+        "ai_advice_fast": "解答スピードは完璧です！ケアレスミスにだけ注意してください。",
+        "ai_advice_streak": "{}日連続学習中！習慣化の達人ですね。",
+        "ai_advice_no_study": "今日はまだ学習記録がありません。1問だけでも解いてみませんか？",
+        
+        # Insights
+        "insight_urgent_warning": "⚠️ **要注意**: 残り{days_left}日で{gap:.1%}の改善が必要です。1日あたり{required_daily_improvement:.2%}のペースで向上が必要です。集中学習を推奨します。",
+        "insight_on_track": "残り{days_left}日で目標達成可能です。現在のペースを維持しながら、弱点補強を進めましょう。",
+        "insight_goal_achieved": "🎉 **目標達成済み**！現在の実力を維持しつつ、難易度の高い問題にチャレンジしましょう。",
+        "insight_growth": "📈 **素晴らしい成長**！先週比+{improvement:.1%}の改善です。この調子で継続しましょう。",
+        "insight_decline": "先週比-{abs(improvement):.1%}の低下が見られます。休息が必要かもしれません。無理せず、基礎の復習に戻りましょう。",
+        "insight_time_over": "平均{time_excess:.0f}秒超過しています。「速さより正確さ」から「スピード重視」にシフトする時期かもしれません。",
+        "insight_time_good": "解答スピードは十分です。ケアレスミス防止のための見直し時間を確保しましょう。",
+        
+        # Heatmap
+        "accuracy_by_field": "分野別正答率",
+        "weakness_analysis_4_quadrants": "弱点分析 (4象限)",
+        
+        # Date Formats
+        "month_format": "{}年{}月",
+        "date_format": "%Y年%m月%d日",
+        "weekdays": ["月", "火", "水", "木", "金", "土", "日"],
+        
+        # Learning Resources
+        "search_youtube": "YouTubeで解説を探す",
+        "search_google": "Googleで解説を探す",
+        "resources": "学習リソース",
+        "watch_video": "📺 動画解説",
     },
     "English": {
         # Sidebar
@@ -677,6 +732,72 @@ TRANSLATIONS = {
         "copy_for_clipboard": "Copy to Clipboard",
         "download_pdf": "📄 Download PDF",
         "additional_libs_for_pdf": "Additional libs required for PDF",
+        "weekly_plan": "Weekly Study Plan",
+        "plan_prev": "← Prev",
+        "plan_next": "Next →",
+        
+        "next_week_focus": "Focus Unit",
+        "priority_highest": "Highest Priority",
+        "todays_menu": "Today's Menu",
+        "recommended": "Recommended",
+        
+        # Roadmap Recommendations
+        "rec_next_challenge": "Challenge '{}' next",
+        "rec_aim_standard_80": "Aim for 80% accuracy in standard problems",
+        "rec_current_coverage": "Current Coverage: {:.0f}%",
+        "rec_review_standard": "Review standard problems again",
+        "rec_aim_stable_80": "Goal is to stabilize at 80% accuracy",
+        "rec_start_basic": "Start with '{}' first",
+        "rec_aim_basic_80": "Aim for 80% accuracy in basic problems",
+        "rec_review_basic": "Review basic problems to improve retention",
+        "rec_continue_advanced": "Continue solving advanced problems",
+        "rec_aim_advanced_accuracy": "Aim to improve accuracy on high-difficulty problems",
+        "rec_focus_speed": "Focus on reducing answer time",
+        
+        # Weekly Plan Items
+        "plan_review": "Review",
+        "plan_weakness": "Weakness",
+        
+        # Timeline Phases
+        "timeline_foundation": "Foundation Phase",
+        "timeline_applied": "Applied Practice Phase",
+        "timeline_final": "Final Prep Phase",
+        
+        # Data List Tab
+        "filter_condition": "Filter",
+        
+        # AI Advice
+        "ai_advice_high_accuracy": "Excellent accuracy! Try challenging higher difficulty problems.",
+        "ai_advice_almost_there": "Almost there! Review your weak units to reach the goal.",
+        "ai_advice_needs_work": "Start with the basics. Focus on reviewing units with low accuracy.",
+        "ai_advice_slow": "Taking a bit too long. Try to speed up your problem solving.",
+        "ai_advice_fast": "Perfect speed! Just be careful of careless mistakes.",
+        "ai_advice_streak": "{} day streak! You are a master of habit.",
+        "ai_advice_no_study": "No study record for today yet. Why not solve just one problem?",
+        
+        # Insights
+        "insight_urgent_warning": "⚠️ **Warning**: Need {:.1f}% improvement in {} days. Required daily improvement: {:.2f}%. Intensive study recommended.",
+        "insight_on_track": "Goal achievable in {} days. Maintain current pace and reinforce weaknesses.",
+        "insight_goal_achieved": "🎉 **Goal Achieved**! Maintain current level and challenge harder problems.",
+        "insight_growth": "📈 **Great Growth**! +{:.1f}% improvement from last week. Keep it up.",
+        "insight_decline": "Decline of -{:.1f}% from last week. Rest might be needed. Review basics without rushing.",
+        "insight_time_over": "Averaging {:.0f}s over target. Time to shift from 'accuracy' to 'speed'.",
+        "insight_time_good": "Speed is sufficient. Ensure time for reviewing to prevent careless mistakes.",
+        
+        # Heatmap
+        "accuracy_by_field": "Accuracy by Field",
+        "weakness_analysis_4_quadrants": "Weakness Analysis (4 Quadrants)",
+        
+        # Date Formats
+        "month_format": "{} / {}",
+        "date_format": "%Y/%m/%d",
+        "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        
+        # Learning Resources
+        "search_youtube": "Search on YouTube",
+        "search_google": "Search on Google",
+        "resources": "Resources",
+        "watch_video": "📺 Watch Video",
     },
     "簡体字": {
         # Sidebar
@@ -1016,24 +1137,161 @@ TRANSLATIONS = {
         "copy_for_clipboard": "复制到剪贴板",
         "download_pdf": "📄 下载 PDF",
         "additional_libs_for_pdf": "PDF需要额外的库",
+        
+        # AI Advice
+        "ai_advice_high_accuracy": "正确率很棒！保持这个状态，挑战更高难度的问题吧。",
+        "ai_advice_almost_there": "距离目标只差一点！重点复习薄弱单元就能达成。",
+        "ai_advice_needs_work": "首先巩固基础。重点回顾正确率低的单元。",
+        "ai_advice_slow": "花费时间稍多。试着有意识地提高解题速度。",
+        "ai_advice_fast": "解题速度完美！只需注意避免粗心错误。",
+        "ai_advice_streak": "连续学习{}天！你是习惯养成的达人。",
+        "ai_advice_no_study": "今天还没有学习记录。试着解一道题也好？",
+        
+        # Insights
+        "insight_urgent_warning": "⚠️ **注意**: 剩余{days_left}天需要提升{gap:.1%}。需要每天提升{required_daily_improvement:.2%}。建议集中学习。",
+        "insight_on_track": "剩余{days_left}天可达成目标。保持当前节奏，加强弱点。",
+        "insight_goal_achieved": "🎉 **目标达成**！保持当前实力，挑战更高难度。",
+        "insight_growth": "📈 **成长显著**！比上周提升+{improvement:.1%}。继续保持！",
+        "insight_decline": "比上周下降-{abs(improvement):.1%}。可能需要休息。不要着急，回归基础复习。",
+        "insight_time_over": "平均超过{time_excess:.0f}秒。是时候从「准确率」转向「速度」了。",
+        "insight_time_good": "解题速度足够。确保有时间检查以防粗心。",
+        
+        # Heatmap
+        "accuracy_by_field": "各领域正确率",
+        "weakness_analysis_4_quadrants": "弱点分析 (4象限)",
+        
+        # Date Formats
+        "month_format": "{}年{}月",
+        "date_format": "%Y年%m月%d日",
+        "weekdays": ["一", "二", "三", "四", "五", "六", "日"],
+        
+        # Learning Resources
+        "search_youtube": "在YouTube上搜索",
+        "search_google": "在Google上搜索",
+        "resources": "学习资源",
+        "watch_video": "📺 观看视频",
+    }
+}
+
+DATA_TRANSLATIONS = {
+    "English": {
+        # Subjects
+        "非言語": "Non-verbal",
+        "言語": "Verbal",
+        
+        # Genres
+        "推論": "Inference",
+        "計算・文章題": "Calculation/Word Problems",
+        "確率・場合": "Probability/Cases",
+        "図表の読み取り": "Chart Reading",
+        "特殊算・その他": "Special Calculations/Others",
+        "語彙知識": "Vocabulary",
+        "文法・表現": "Grammar/Expression",
+        "文章読解": "Reading Comprehension",
+        
+        # Units
+        "集合の推論 (ベン図)": "Set Inference (Venn Diagram)",
+        "論理的な推論 (真偽・順序)": "Logical Inference (Truth/Order)",
+        "対戦・リーグ戦の推論": "Match/League Inference",
+        "命題・三段論法": "Propositions/Syllogisms",
+        "領域 (座標平面)": "Region (Coordinate Plane)",
+        "物の流れ": "Flow of Objects",
+        "比と割合の計算": "Ratio/Proportion",
+        "濃度算": "Concentration",
+        "割引・割増計算": "Discount/Markup",
+        "損益算": "Profit and Loss",
+        "仕事算": "Work Problems",
+        "速度算": "Speed Problems",
+        "料金の割引": "Fee Discounts",
+        "確率 (基礎)": "Probability (Basic)",
+        "場合の数": "Number of Cases",
+        "グラフ・表の計算": "Graph/Table Calc",
+        "増加率の把握": "Growth Rates",
+        "複数情報の読み取り": "Multiple Info Sources",
+        "植木算・年齢算": "Tree/Age Problems",
+        "集合の計算": "Set Calculations",
+        "分割払い": "Installments",
+        "不定方程式": "Indeterminate Equations",
+        "二語の関係": "Word Relationships",
+        "熟語の成り立ち": "Idiom Formation",
+        "語句の定義": "Word Definitions",
+        "語句の用法": "Word Usage",
+        "空欄補充": "Fill in the Blanks",
+        "文の並べ替え": "Sentence Reordering",
+        "長文読解": "Long Passage Reading",
+        "論理的読解": "Logical Reading"
+    },
+    "簡体字": {
+        # Subjects
+        "非言語": "非语言",
+        "言語": "语言",
+        
+        # Genres
+        "推論": "推理",
+        "計算・文章題": "计算/应用题",
+        "確率・場合": "概率/情况",
+        "図表の読み取り": "图表阅读",
+        "特殊算・その他": "特殊计算/其他",
+        "語彙知識": "词汇知识",
+        "文法・表現": "语法/表达",
+        "文章読解": "文章阅读",
+        
+        # Units
+        "集合の推論 (ベン図)": "集合推理 (韦恩图)",
+        "論理的な推論 (真偽・順序)": "逻辑推理 (真伪/顺序)",
+        "対戦・リーグ戦の推論": "对战/联赛推理",
+        "命題・三段論法": "命题/三段论",
+        "領域 (座標平面)": "区域 (坐标平面)",
+        "物の流れ": "物流问题",
+        "比と割合の計算": "比率和比例计算",
+        "濃度算": "浓度计算",
+        "割引・割増計算": "折扣/加价计算",
+        "損益算": "损益计算",
+        "仕事算": "工程问题",
+        "速度算": "速度计算",
+        "料金の割引": "费用折扣",
+        "確率 (基礎)": "概率 (基础)",
+        "場合の数": "排列组合",
+        "グラフ・表の計算": "图表计算",
+        "増加率の把握": "增长率掌握",
+        "複数情報の読み取り": "多重信息阅读",
+        "植木算・年齢算": "植树/年龄问题",
+        "集合の計算": "集合计算",
+        "分割払い": "分期付款",
+        "不定方程式": "不定方程",
+        "二語の関係": "二词关系",
+        "熟語の成り立ち": "成语结构",
+        "語句の定義": "词语定义",
+        "语句の用法": "词语用法",
+        "空欄補充": "填空",
+        "文の並べ替え": "句子排序",
+        "長文読解": "长文阅读",
+        "論理的読解": "逻辑阅读"
     }
 }
 
 def get_text(key, lang="日本語"):
     """
-    指定された言語とキーに対応するテキストを返す
+    指定された言語でテキストを取得する
     """
-    # 言語が辞書にない場合は日本語をデフォルトにする
-    if lang not in TRANSLATIONS:
-        lang = "日本語"
+    if lang == "日本語":
+        return TRANSLATIONS["日本語"].get(key, key)
     
-    # キーがその言語の辞書にあるか確認
-    if key in TRANSLATIONS[lang]:
+    # 指定言語にキーがあればそれを返す
+    if lang in TRANSLATIONS and key in TRANSLATIONS[lang]:
         return TRANSLATIONS[lang][key]
     
-    # キーがない場合は、日本語の辞書から探す（フォールバック）
-    if key in TRANSLATIONS["日本語"]:
-        return TRANSLATIONS["日本語"][key]
+    # なければ日本語（デフォルト）を返す
+    return TRANSLATIONS["日本語"].get(key, key)
+
+def get_data_text(text, lang="日本語"):
+    """
+    データ（科目・単元など）の翻訳を取得する
+    """
+    if lang == "日本語":
+        return text
         
-    # それでもない場合はキー自体を返す
-    return key
+    if lang in DATA_TRANSLATIONS and text in DATA_TRANSLATIONS[lang]:
+        return DATA_TRANSLATIONS[lang][text]
+        
+    return text
