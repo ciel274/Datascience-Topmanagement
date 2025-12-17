@@ -15,7 +15,7 @@ from google_sheets_utils import GoogleSheetsManager
 import app_translations as tr
 from app_translations import TRANSLATIONS
 from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import LabelEncoder
+
 from sklearn.ensemble import RandomForestRegressor
 import ai_utils
 from flashcard_data import FLASHCARD_DATA
@@ -2387,35 +2387,60 @@ with st.sidebar.expander(t("user_management"), expanded=False):
     else:
         st.sidebar.error(f"Google Sheets接続エラー: {error}")
     
-    if t("default_user") not in existing_users:
-        existing_users.insert(0, t("default_user"))
-    
-    selected_user = st.selectbox(
-        t("select_user"),
-        options=[t("create_new_user")] + existing_users,
-        index=(existing_users.index(st.session_state.current_user) + 1) 
-              if st.session_state.current_user in existing_users else 1,
-        format_func=lambda x: t("create_new") if x == t("create_new_user") else x
-    )
-    
-    if selected_user == t("create_new_user"):
-        new_user = st.text_input(t("new_user_name"), placeholder=t("new_user_placeholder"))
-        if st.button(t("create_user_btn")) and new_user:
-            if new_user not in existing_users:
-                _, err = st.session_state.sheets_manager.get_or_create_user_sheet(new_user)
-                if not err:
-                    st.session_state.current_user = new_user
-                    st.success(t("user_created").format(new_user))
-                    trigger_rerun()
+    # ユーザー自動認証 (Streamlit Cloud)
+    user_email = None
+    try:
+        # st.experimental_user.email が存在し、かつテスト用アドレスでない場合
+        if hasattr(st, "experimental_user") and st.experimental_user.email and st.experimental_user.email != "test@example.com":
+            user_email = st.experimental_user.email
+    except:
+        pass
+
+    if user_email:
+        # --- 自動ログインモード ---
+        if st.session_state.current_user != user_email:
+            st.session_state.current_user = user_email
+            # シートが存在しない場合は自動作成
+            if user_email not in existing_users:
+                _, err = st.session_state.sheets_manager.get_or_create_user_sheet(user_email)
+                if err:
+                    st.sidebar.error(f"データ作成エラー: {err}")
+            trigger_rerun()
+            
+        st.sidebar.success(f"ログイン中: {user_email}")
+        st.markdown(f"**{t('current_user')}:** {st.session_state.current_user} (Auto-Login)")
+        
+    else:
+        # --- 手動選択モード (ローカル/未ログイン) ---
+        if t("default_user") not in existing_users:
+            existing_users.insert(0, t("default_user"))
+        
+        selected_user = st.selectbox(
+            t("select_user"),
+            options=[t("create_new_user")] + existing_users,
+            index=(existing_users.index(st.session_state.current_user) + 1) 
+                  if st.session_state.current_user in existing_users else 1,
+            format_func=lambda x: t("create_new") if x == t("create_new_user") else x
+        )
+        
+        if selected_user == t("create_new_user"):
+            new_user = st.text_input(t("new_user_name"), placeholder=t("new_user_placeholder"))
+            if st.button(t("create_user_btn")) and new_user:
+                if new_user not in existing_users:
+                    _, err = st.session_state.sheets_manager.get_or_create_user_sheet(new_user)
+                    if not err:
+                        st.session_state.current_user = new_user
+                        st.success(t("user_created").format(new_user))
+                        trigger_rerun()
+                    else:
+                        st.error(f"ユーザー作成エラー: {err}")
                 else:
-                    st.error(f"ユーザー作成エラー: {err}")
-            else:
-                st.error(t("user_exists"))
-    elif selected_user != st.session_state.current_user:
-        st.session_state.current_user = selected_user
-        trigger_rerun()
-    
-    st.markdown(f"**{t('current_user')}:** {st.session_state.current_user}")
+                    st.error(t("user_exists"))
+        elif selected_user != st.session_state.current_user:
+            st.session_state.current_user = selected_user
+            trigger_rerun()
+        
+        st.markdown(f"**{t('current_user')}:** {st.session_state.current_user}")
 
 # 4. ファイルアップロードセクション (CSVインポート機能として残す)
 st.sidebar.markdown(f'<div class="chart-header" style="font-size:0.9rem; margin-bottom:8px;"><i class="bi bi-folder icon-badge" style="width:24px; height:24px; font-size:0.9rem;"></i>{t("file_management")}</div>', unsafe_allow_html=True)
