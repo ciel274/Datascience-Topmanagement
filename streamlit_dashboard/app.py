@@ -3637,21 +3637,10 @@ if tab_selection == t("tab_dashboard"):
                     arrow_html = ""
                     if idx < 2:
                         arrow_html = f"""
-                        <div style="
-                            position: absolute;
-                            top: 50%;
-                            right: -25px;
-                            transform: translateY(-50%);
-                            z-index: 10;
-                            color: #cbd5e1;
-                            font-size: 1.5rem;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                        ">
-                            <i class="bi bi-chevron-right"></i>
-                        </div>
-                        """
+<div style="position: absolute; top: 50%; right: -25px; transform: translateY(-50%); z-index: 10; color: #cbd5e1; font-size: 1.5rem; display: flex; align-items: center; justify-content: center;">
+    <i class="bi bi-chevron-right"></i>
+</div>
+"""
                     
                     st.markdown(f"""
                     <style>
@@ -4323,7 +4312,7 @@ if tab_selection == t("tab_data_list"):
             except Exception as e:
                 st.error(f"保存処理エラー: {str(e)}")
         
-        csv = st.session_state.df_log_manual.to_csv(index=False, encoding='utf-8-sig')
+        csv = st.session_state.df_log_manual.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label=t("download_csv"),
             data=csv,
@@ -4684,30 +4673,34 @@ def render_flashcards():
             # Navigation Controls
             # Use sac.buttons for Bootstrap icons
             
-            selected_action = sac.buttons([
-                sac.ButtonsItem(label=t('flip'), icon='arrow-repeat'),
-                sac.ButtonsItem(label=t('prev_card'), icon='arrow-left'),
-                sac.ButtonsItem(label=t('next_card'), icon='arrow-right'),
-                sac.ButtonsItem(label=t('shuffle'), icon='shuffle'),
-            ], align='center', direction='vertical', size='sm', variant='outline', return_index=True, key=f"fc_ctrl_{st.session_state.fc_index}_{st.session_state.fc_flipped}")
+            # Navigation Controls
+            # Use standard columns and buttons to avoid infinite loop with stateful components
+            c1, c2, c3, c4 = st.columns(4)
             
-            if selected_action == 0: # Flip
-                st.session_state.fc_flipped = not st.session_state.fc_flipped
-                trigger_rerun()
-            elif selected_action == 1: # Prev
-                st.session_state.fc_index = (current_idx - 1 + total_cards) % total_cards
-                st.session_state.fc_flipped = False
-                trigger_rerun()
-            elif selected_action == 2: # Next
-                st.session_state.fc_index = (current_idx + 1) % total_cards
-                st.session_state.fc_flipped = False
-                trigger_rerun()
-            elif selected_action == 3: # Shuffle
-                import random
-                random.shuffle(st.session_state.fc_shuffled_cards)
-                st.session_state.fc_index = 0
-                st.session_state.fc_flipped = False
-                trigger_rerun()
+            with c1:
+                if st.button(t('prev_card'), key=f"fc_prev_{current_idx}", use_container_width=True):
+                    st.session_state.fc_index = (current_idx - 1 + total_cards) % total_cards
+                    st.session_state.fc_flipped = False
+                    trigger_rerun()
+            
+            with c2:
+                if st.button(t('flip'), key=f"fc_flip_{current_idx}", use_container_width=True):
+                    st.session_state.fc_flipped = not st.session_state.fc_flipped
+                    trigger_rerun()
+            
+            with c3:
+                if st.button(t('next_card'), key=f"fc_next_{current_idx}", use_container_width=True):
+                    st.session_state.fc_index = (current_idx + 1) % total_cards
+                    st.session_state.fc_flipped = False
+                    trigger_rerun()
+            
+            with c4:
+                if st.button(t('shuffle'), key=f"fc_shuffle_{current_idx}", use_container_width=True):
+                    import random
+                    random.shuffle(st.session_state.fc_shuffled_cards)
+                    st.session_state.fc_index = 0
+                    st.session_state.fc_flipped = False
+                    trigger_rerun()
 
         with col_card:
             # Client-side Flashcard with HTML/CSS/JS
