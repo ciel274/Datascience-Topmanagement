@@ -36,6 +36,11 @@ TRANSLATIONS = {
         "toast_success": "データを追加しました",
         "toast_error_id": "問題IDが特定できません",
         
+        "select_unit_label": "単元を選択",
+        "generate_problem_btn": "問題を生成する",
+        "generating_problem_spinner": "AIが問題を作成中...",
+        "generated_problem_title": "### 生成された問題",
+        
         "user_management": "ユーザー管理",
         "select_user": "ユーザーを選択",
         "create_new": "新規作成...",
@@ -68,6 +73,9 @@ TRANSLATIONS = {
         "tab_review_notes": "復習ノート",
         "tab_settings": "設定",
         "tab_language": "言語 / Language",
+        "tab_ai_chat": "AIチャット",
+        "tab_ranking": "ランキング",
+        "tab_flashcards": "暗記カード",
         
         # Dashboard
         "current_accuracy": "現在の正答率",
@@ -80,6 +88,7 @@ TRANSLATIONS = {
         "over_target_time": "目標時間超過",
         "total_exercises": "総演習数",
         "total_problems": "累計問題数",
+        "search_suffix": " 問題",
         
         "ai_coach": "AIコーチ",
         "study_calendar": "学習カレンダー",
@@ -96,8 +105,13 @@ TRANSLATIONS = {
         "coverage": "カバー率",
         "next_step": "次のステップ",
         "weekly_plan": "今週の学習プラン",
+        "weekly_learning_plan": "週間学習プラン",
+        "weekly_plan_desc": "試験日から逆算して、今週やるべき単元と時間を提案します。",
+        "update_plan": "プラン更新",
+        "acquired_badges": "獲得バッジ",
         "plan_prev": "← 前の日程",
         "plan_next": "次の日程 →",
+        "rest_day": "休息日",
         
         "next_week_focus": "来週の重点単元",
         "priority_highest": "最優先",
@@ -133,6 +147,18 @@ TRANSLATIONS = {
         "download_csv": "CSVでダウンロード",
         "download_excel": "Excelでダウンロード",
         
+        # AI Chat Tab
+        "ai_coach_title": "AI学習コーチ",
+        "ai_chat_desc": "学習に関する質問や相談になんでも答えます。講義資料(PDF)をアップロードして質問することも可能です。",
+        "upload_pdf_expander": "講義資料(PDF)をアップロードして質問する",
+        "select_pdf": "PDFファイルを選択",
+        "reading_pdf": "PDFを読み込んでいます...",
+        "pdf_read_success": "『{}』の内容を読み込みました！この資料について質問できます。",
+        "current_pdf": "現在参照中の資料: {}",
+        "chat_placeholder": "質問を入力してください...",
+        "thinking": "考え中...",
+        "context_summary": "現在の総学習時間は{}分、全体の正答率は{:.1%}です。",
+        
         # AI Analysis Tab
         "analysis_period": "分析期間",
         "start_date": "開始日",
@@ -151,6 +177,87 @@ TRANSLATIONS = {
         # Review Notes Tab
         "review_notes_title": "復習ノート一覧",
         "registered_at": "登録日時",
+        
+        # Flashcards Tab
+        "flashcards_title": "暗記カード (言語)",
+        "flashcards_desc": "言語分野の重要語句を効率よく暗記しましょう。",
+        "select_unit": "単元を選択",
+        "no_cards_for_unit": "この単元のカードはありません。",
+        "answer": "答え",
+        "question": "問題",
+        "click_to_show_answer": "クリックして答えを表示（下のボタン）",
+        "flip": "🔄 めくる",
+        "next_card": "次へ ➡",
+        "prev_card": "⬅ 前へ",
+        "shuffle": "🔀 シャッフル",
+        "card_counter": "Card {} / {}",
+
+        # Ranking Tab
+        "ranking_title": "学習時間ランキング",
+        "ranking_desc": "全ユーザーの学習時間ランキングです。上位を目指して頑張りましょう！",
+        "ranking_updating": "ランキング更新中...",
+        "ranking_error": "ランキング取得エラー: {}",
+        "your_rank": "あなたの順位",
+        "rank_suffix": "位",
+        "hours_suffix": " 時間",
+        "top_10_users": "トップ10ユーザー",
+        "no_ranking_data": "ランキングデータがまだありません。",
+        "user_label": "ユーザー",
+        "study_time_hours": "学習時間(時間)",
+        
+        # Future Features
+        "future_features": "今後の機能予定:",
+        "feature_auto_plan": "- 自動学習プラン提案",
+        "feature_user_tracking": "- ユーザー別トラッキング",
+        
+        # Dashboard Widgets
+        "widget_metrics": "主要指標",
+        "widget_calendar": "学習カレンダー",
+        "widget_log": "学習記録",
+        "widget_plan": "週間学習プラン",
+        "widget_badges": "バッジ",
+        "dashboard_settings": "ダッシュボード設定",
+        "dashboard_settings_desc": "ダッシュボードに表示するウィジェットを選択・並べ替えできます。",
+        "widget_selection": "表示ウィジェット",
+        "widget_detailed_graphs": "詳細分析グラフ",
+        "graph_radar_title": "科目別習熟度",
+        "graph_donut_title": "学習バランス（問題数）",
+        "graph_heatmap_title": "分野別正答率",
+        "graph_quadrant_title": "弱点分析（4象限）",
+        "quadrant_ideal": "理想的",
+        "quadrant_careless": "ケアレスミス",
+        "quadrant_review": "要復習",
+        "quadrant_slow": "要スピード",
+        "axis_avg_time": "平均解答時間 (秒)",
+        "axis_accuracy": "正答率",
+        "select_widgets_label": "表示項目（ドラッグして並び替え可能）",
+        
+        # Weekly Report
+        "report_no_data": "データがありません。",
+        "report_no_week_data": "過去7日間のデータがありません。",
+        "report_title": "{}さんの週報レポート",
+        "report_period": "期間: {} 〜 {}",
+        "report_achievements": "今週の成果",
+        "report_study_days": "- **学習日数**: {}日",
+        "report_total_problems": "- **総演習問題数**: {}問",
+        "report_total_time": "- **総学習時間**: {:.0f}分 ({:.1f}時間)",
+        "report_avg_accuracy": "- **平均正答率**: {:.1f}%",
+        "report_top_unit_title": "最重点単元",
+        "report_top_unit_desc": "**{}** を {}問 演習しました！",
+        "report_ai_comment_title": "AIコーチからの総評",
+        "report_comment_excellent": "素晴らしい！この調子で継続しましょう。",
+        "report_comment_good": "着実に力をつけています。弱点を意識して復習を！",
+        "report_comment_basic": "基礎固めが必要です。焦らずコツコツ進めましょう。",
+        "report_next_goal_title": "来週の目標",
+        "report_next_goal_desc": "正答率 **{:.0f}%** を目指して、復習を強化しましょう！",
+        
+        # Roadmap
+        "rec_continue_advanced": "応用問題を継続して解きましょう",
+        "rec_aim_high_accuracy": "高難易度問題の正答率向上を目指しましょう",
+        "rec_reduce_time": "解答時間の短縮にも意識を向けましょう",
+        "status_completed": "完了",
+        "status_in_progress": "進行中",
+        "status_not_started": "未着手",
         
         # Settings Tab
         "app_settings": "アプリ設定",
@@ -371,17 +478,43 @@ TRANSLATIONS = {
         "ai_advice_no_study": "今日はまだ学習記録がありません。1問だけでも解いてみませんか？",
         
         # Insights
-        "insight_urgent_warning": "⚠️ **要注意**: 残り{days_left}日で{gap:.1%}の改善が必要です。1日あたり{required_daily_improvement:.2%}のペースで向上が必要です。集中学習を推奨します。",
-        "insight_on_track": "残り{days_left}日で目標達成可能です。現在のペースを維持しながら、弱点補強を進めましょう。",
+        "insight_urgent_warning": "⚠️ **要注意**: 残り{days_left}日で{gap:.1f}%の改善が必要です。1日あたり{required_daily_improvement:.2f}%のペースで向上が必要です。集中学習を推奨します。",
+        "insight_on_track": "残り{}日で目標達成可能です。現在のペースを維持しながら、弱点補強を進めましょう。",
         "insight_goal_achieved": "🎉 **目標達成済み**！現在の実力を維持しつつ、難易度の高い問題にチャレンジしましょう。",
-        "insight_growth": "📈 **素晴らしい成長**！先週比+{improvement:.1%}の改善です。この調子で継続しましょう。",
-        "insight_decline": "先週比-{abs(improvement):.1%}の低下が見られます。休息が必要かもしれません。無理せず、基礎の復習に戻りましょう。",
+        "insight_growth": "📈 **素晴らしい成長**！先週比+{:.1f}%の改善です。この調子で継続しましょう。",
+        "insight_decline": "先週比-{:.1f}%の低下が見られます。休息が必要かもしれません。無理せず、基礎の復習に戻りましょう。",
         "insight_time_over": "平均{time_excess:.0f}秒超過しています。「速さより正確さ」から「スピード重視」にシフトする時期かもしれません。",
         "insight_time_good": "解答スピードは十分です。ケアレスミス防止のための見直し時間を確保しましょう。",
+        
+        # Insight Categories & Advice
+        "cat_progress": "進捗管理",
+        "cat_weakness": "弱点分析",
+        "cat_growth": "成長記録",
+        "cat_time": "時間管理",
+        "advice_inference": "図を描いて整理する習慣をつけましょう",
+        "advice_calculation": "計算ミスを減らすため、概数で当たりをつける習慣を",
+        "advice_english": "文法より読解スピードを優先。1文1秒ペースを目標に",
+        "advice_default": "基礎問題を繰り返し、パターンを体に染み込ませましょう",
+        "insight_weakness_msg": "**{}**が最大の弱点です（正答率{:.1%}）。{}",
         
         # Heatmap
         "accuracy_by_field": "分野別正答率",
         "weakness_analysis_4_quadrants": "弱点分析 (4象限)",
+        "accuracy_vs_time": "正答率 vs 解答時間",
+        "high_accuracy_slow": "要スピードアップ",
+        "high_accuracy_fast": "得意・安定",
+        "low_accuracy_slow": "要基礎復習",
+        "low_accuracy_fast": "ケアレスミス注意",
+        
+        # AI Problem Generation
+        "ai_problem_gen_title": "AI練習問題生成",
+        "ai_problem_gen_desc": "苦手な単元の類似問題をAIが自動生成します。",
+        
+        # Prophet Errors
+        "prophet_not_installed": "Prophetがインストールされていません",
+        "prophet_min_data": "予測には最低10件のデータが必要です",
+        "prophet_no_exam_date": "試験日が設定されていません",
+        "roadmap_error": "ロードマップ生成エラー: {}",
         
         # Date Formats
         "month_format": "{}年{}月",
@@ -462,6 +595,9 @@ TRANSLATIONS = {
         "tab_review_notes": "Review Notes",
         "tab_settings": "Settings",
         "tab_language": "Language",
+        "tab_ai_chat": "AI Chat",
+        "tab_ranking": "Ranking",
+        "tab_flashcards": "Flashcards",
         
         # Dashboard
         "current_accuracy": "Current Accuracy",
@@ -474,6 +610,7 @@ TRANSLATIONS = {
         "over_target_time": "Over Target",
         "total_exercises": "Total Exercises",
         "total_problems": "Total Problems",
+        "search_suffix": " Problem",
         
         "ai_coach": "AI Coach",
         "study_calendar": "Study Calendar",
@@ -505,6 +642,18 @@ TRANSLATIONS = {
         "download_csv": "Download CSV",
         "download_excel": "Download Excel",
         
+        # AI Chat Tab
+        "ai_coach_title": "AI Learning Coach",
+        "ai_chat_desc": "Ask anything about your studies. You can also upload PDF materials to ask questions about them.",
+        "upload_pdf_expander": "Upload PDF materials to ask questions",
+        "select_pdf": "Select PDF File",
+        "reading_pdf": "Reading PDF...",
+        "pdf_read_success": "Loaded '{}'! You can now ask questions about this document.",
+        "current_pdf": "Current Document: {}",
+        "chat_placeholder": "Type your question...",
+        "thinking": "Thinking...",
+        "context_summary": "Total study time: {} min, Overall Accuracy: {:.1%}.",
+        
         # AI Analysis Tab
         "analysis_period": "Analysis Period",
         "start_date": "Start Date",
@@ -523,6 +672,87 @@ TRANSLATIONS = {
         # Review Notes Tab
         "review_notes_title": "Review Notes",
         "registered_at": "Registered At",
+        
+        # Flashcards Tab
+        "flashcards_title": "Flashcards (Verbal)",
+        "flashcards_desc": "Efficiently memorize important terms in the Verbal section.",
+        "select_unit": "Select Unit",
+        "no_cards_for_unit": "No cards for this unit.",
+        "answer": "Answer",
+        "question": "Question",
+        "click_to_show_answer": "Click to show answer (Button below)",
+        "flip": "🔄 Flip",
+        "next_card": "Next ➡",
+        "prev_card": "⬅ Prev",
+        "shuffle": "🔀 Shuffle",
+        "card_counter": "Card {} / {}",
+
+        # Ranking Tab
+        "ranking_title": "Study Time Ranking",
+        "ranking_desc": "Ranking of total study time for all users. Aim for the top!",
+        "ranking_updating": "Updating ranking...",
+        "ranking_error": "Ranking fetch error: {}",
+        "your_rank": "Your Rank",
+        "rank_suffix": "",
+        "hours_suffix": " hours",
+        "top_10_users": "Top 10 Users",
+        "no_ranking_data": "No ranking data yet.",
+        "user_label": "User",
+        "study_time_hours": "Study Time (hours)",
+        
+        # Future Features
+        "future_features": "Future Features:",
+        "feature_auto_plan": "- Auto Study Plan Proposal",
+        "feature_user_tracking": "- User Tracking",
+        
+        # Dashboard Widgets
+        "widget_metrics": "Key Metrics",
+        "widget_calendar": "Study Calendar",
+        "widget_log": "Study Log",
+        "widget_plan": "Weekly Plan",
+        "widget_badges": "Badges",
+        "dashboard_settings": "Dashboard Settings",
+        "dashboard_settings_desc": "Select and reorder widgets to display on the dashboard.",
+        "widget_selection": "Widget Selection",
+        "widget_detailed_graphs": "Detailed Graphs",
+        "graph_radar_title": "Proficiency by Subject",
+        "graph_donut_title": "Learning Balance (Problems)",
+        "graph_heatmap_title": "Accuracy by Field",
+        "graph_quadrant_title": "Weakness Analysis (4 Quadrants)",
+        "quadrant_ideal": "Ideal",
+        "quadrant_careless": "Careless",
+        "quadrant_review": "Needs Review",
+        "quadrant_slow": "Needs Speed",
+        "axis_avg_time": "Avg Time (sec)",
+        "axis_accuracy": "Accuracy",
+        "select_widgets_label": "Display Items (Drag to reorder)",
+        
+        # Weekly Report
+        "report_no_data": "No data available.",
+        "report_no_week_data": "No data for the past 7 days.",
+        "report_title": "Weekly Report for {}",
+        "report_period": "Period: {} - {}",
+        "report_achievements": "Achievements This Week",
+        "report_study_days": "- **Study Days**: {} days",
+        "report_total_problems": "- **Total Problems**: {} questions",
+        "report_total_time": "- **Total Study Time**: {:.0f} min ({:.1f} hours)",
+        "report_avg_accuracy": "- **Avg Accuracy**: {:.1f}%",
+        "report_top_unit_title": "Top Unit",
+        "report_top_unit_desc": "Practiced **{}** ({} questions)!",
+        "report_ai_comment_title": "AI Coach Feedback",
+        "report_comment_excellent": "Excellent! Keep up the great work.",
+        "report_comment_good": "Making steady progress. Focus on weaknesses!",
+        "report_comment_basic": "Need to solidify basics. Take it step by step.",
+        "report_next_goal_title": "Goal for Next Week",
+        "report_next_goal_desc": "Aim for **{:.0f}%** accuracy and strengthen review!",
+        
+        # Roadmap
+        "rec_continue_advanced": "Continue solving advanced problems",
+        "rec_aim_high_accuracy": "Aim for higher accuracy on difficult problems",
+        "rec_reduce_time": "Focus on reducing answer time",
+        "status_completed": "Completed",
+        "status_in_progress": "In Progress",
+        "status_not_started": "Not Started",
         
         # Settings Tab
         "app_settings": "App Settings",
@@ -647,6 +877,7 @@ TRANSLATIONS = {
         "upper_bound": "Upper",
         "lower_bound": "Lower",
         "goal": "Goal",
+        "weekly_plan_desc": "Proposes units and time to study this week, calculated backwards from the exam date.",
         "prophet_prediction": "Prophet Prediction",
         "detailed_analysis": "Detailed Analysis",
         "accuracy_by_field": "Accuracy by Field",
@@ -776,17 +1007,47 @@ TRANSLATIONS = {
         "ai_advice_no_study": "No study record for today yet. Why not solve just one problem?",
         
         # Insights
-        "insight_urgent_warning": "⚠️ **Warning**: Need {:.1f}% improvement in {} days. Required daily improvement: {:.2f}%. Intensive study recommended.",
+        "insight_urgent_warning": "⚠️ **Warning**: Need {gap:.1f}% improvement in {days_left} days. Required daily improvement: {required_daily_improvement:.2f}%. Intensive study recommended.",
         "insight_on_track": "Goal achievable in {} days. Maintain current pace and reinforce weaknesses.",
         "insight_goal_achieved": "🎉 **Goal Achieved**! Maintain current level and challenge harder problems.",
         "insight_growth": "📈 **Great Growth**! +{:.1f}% improvement from last week. Keep it up.",
         "insight_decline": "Decline of -{:.1f}% from last week. Rest might be needed. Review basics without rushing.",
-        "insight_time_over": "Averaging {:.0f}s over target. Time to shift from 'accuracy' to 'speed'.",
-        "insight_time_good": "Speed is sufficient. Ensure time for reviewing to prevent careless mistakes.",
+        "insight_time_over": "Average {time_excess:.0f}s over. Shift focus from 'Accuracy' to 'Speed'.",
+        "insight_time_good": "Speed is good. Ensure time for review to prevent careless mistakes.",
+        
+        # Insight Categories & Advice
+        "cat_progress": "Progress",
+        "cat_weakness": "Weakness",
+        "cat_growth": "Growth",
+        "cat_time": "Time Mgmt",
+        "advice_inference": "Habituate drawing diagrams to organize thoughts.",
+        "advice_calculation": "Estimate rough numbers to reduce calculation errors.",
+        "advice_english": "Prioritize reading speed over grammar. Aim for 1 sec/sentence.",
+        "advice_default": "Repeat basic problems to internalize patterns.",
+        "insight_weakness_msg": "**{}** is the biggest weakness (Accuracy {:.1%}). {}",
         
         # Heatmap
         "accuracy_by_field": "Accuracy by Field",
         "weakness_analysis_4_quadrants": "Weakness Analysis (4 Quadrants)",
+        "accuracy_vs_time": "Accuracy vs Time",
+        "high_accuracy_slow": "Need Speed Up",
+        "high_accuracy_fast": "Strong/Stable",
+        "low_accuracy_slow": "Review Basics",
+        "low_accuracy_fast": "Careless Mistakes",
+        
+        # AI Problem Generation
+        "ai_problem_gen_title": "AI Practice Problem Generation",
+        "ai_problem_gen_desc": "AI automatically generates similar problems for weak units.",
+        "select_unit_label": "Select Unit",
+        "generate_problem_btn": "Generate Problem",
+        "generating_problem_spinner": "AI is generating a problem...",
+        "generated_problem_title": "### Generated Problem",
+        
+        # Prophet Errors
+        "prophet_not_installed": "Prophet is not installed",
+        "prophet_min_data": "At least 10 data points required for prediction",
+        "prophet_no_exam_date": "Exam date is not set",
+        "roadmap_error": "Roadmap generation error: {}",
         
         # Date Formats
         "month_format": "{} / {}",
@@ -798,6 +1059,33 @@ TRANSLATIONS = {
         "search_google": "Search on Google",
         "resources": "Resources",
         "watch_video": "📺 Watch Video",
+        
+        # Flashcards Tab
+        "flashcards_title": "Flashcards (Verbal)",
+        "flashcards_desc": "Efficiently memorize important terms in the Verbal section.",
+        "select_unit": "Select Unit",
+        "no_cards_for_unit": "No cards available for this unit.",
+        "answer": "Answer",
+        "question": "Question",
+        "click_to_show_answer": "Click to show answer (Button below)",
+        "flip": "Flip",
+        "next_card": "Next",
+        "prev_card": "Prev",
+        "shuffle": "Shuffle",
+        "card_counter": "Card {} / {}",
+
+        # Ranking Tab
+        "ranking_title": "Study Time Ranking",
+        "ranking_desc": "Ranking of total study time for all users. Aim for the top!",
+        "ranking_updating": "Updating ranking...",
+        "ranking_error": "Ranking fetch error: {}",
+        "your_rank": "Your Rank",
+        "rank_suffix": "",
+        "hours_suffix": " hrs",
+        "top_10_users": "Top 10 Users",
+        "no_ranking_data": "No ranking data available yet.",
+        "user_label": "User",
+        "study_time_hours": "Study Time (hrs)",
     },
     "簡体字": {
         # Sidebar
@@ -867,6 +1155,9 @@ TRANSLATIONS = {
         "tab_review_notes": "复习笔记",
         "tab_settings": "设置",
         "tab_language": "语言",
+        "tab_ai_chat": "AI聊天",
+        "tab_ranking": "排名",
+        "tab_flashcards": "抽认卡",
         
         # Dashboard
         "current_accuracy": "当前准确率",
@@ -879,6 +1170,7 @@ TRANSLATIONS = {
         "over_target_time": "超过目标",
         "total_exercises": "总练习数",
         "total_problems": "总问题数",
+        "search_suffix": " 问题",
         
         "ai_coach": "AI教练",
         "study_calendar": "学习日历",
@@ -910,6 +1202,18 @@ TRANSLATIONS = {
         "download_csv": "下载 CSV",
         "download_excel": "下载 Excel",
         
+        # AI Chat Tab
+        "ai_coach_title": "AI 学习教练",
+        "ai_chat_desc": "回答任何关于学习的问题。您也可以上传 PDF 资料进行提问。",
+        "upload_pdf_expander": "上传 PDF 资料进行提问",
+        "select_pdf": "选择 PDF 文件",
+        "reading_pdf": "正在读取 PDF...",
+        "pdf_read_success": "已加载 '{}'！现在可以针对此文档提问。",
+        "current_pdf": "当前文档: {}",
+        "chat_placeholder": "请输入您的问题...",
+        "thinking": "思考中...",
+        "context_summary": "总学习时间: {} 分钟, 整体准确率: {:.1%}。",
+        
         # AI Analysis Tab
         "analysis_period": "分析期间",
         "start_date": "开始日期",
@@ -928,6 +1232,87 @@ TRANSLATIONS = {
         # Review Notes Tab
         "review_notes_title": "复习笔记",
         "registered_at": "注册时间",
+        
+        # Flashcards Tab
+        "flashcards_title": "抽认卡 (语言)",
+        "flashcards_desc": "高效记忆语言部分的重要术语。",
+        "select_unit": "选择单元",
+        "no_cards_for_unit": "此单元无卡片。",
+        "answer": "答案",
+        "question": "问题",
+        "click_to_show_answer": "点击显示答案（下方按钮）",
+        "flip": "🔄 翻转",
+        "next_card": "下一个 ➡",
+        "prev_card": "⬅ 上一个",
+        "shuffle": "🔀 洗牌",
+        "card_counter": "卡片 {} / {}",
+
+        # Ranking Tab
+        "ranking_title": "学习时间排名",
+        "ranking_desc": "所有用户的总学习时间排名。力争上游！",
+        "ranking_updating": "更新排名中...",
+        "ranking_error": "排名获取错误: {}",
+        "your_rank": "你的排名",
+        "rank_suffix": "名",
+        "hours_suffix": " 小时",
+        "top_10_users": "前10名用户",
+        "no_ranking_data": "暂无排名数据。",
+        "user_label": "用户",
+        "study_time_hours": "学习时间 (小时)",
+        
+        # Future Features
+        "future_features": "未来功能:",
+        "feature_auto_plan": "- 自动学习计划建议",
+        "feature_user_tracking": "- 用户跟踪",
+        
+        # Dashboard Widgets
+        "widget_metrics": "主要指标",
+        "widget_calendar": "学习日历",
+        "widget_log": "学习记录",
+        "widget_plan": "每周计划",
+        "widget_badges": "徽章",
+        "dashboard_settings": "仪表板设置",
+        "dashboard_settings_desc": "您可以选择并重新排序要在仪表板上显示的小部件。",
+        "widget_selection": "小部件选择",
+        "widget_detailed_graphs": "详细图表",
+        "graph_radar_title": "按科目熟练度",
+        "graph_donut_title": "学习平衡（问题数）",
+        "graph_heatmap_title": "按领域准确率",
+        "graph_quadrant_title": "弱点分析（4象限）",
+        "quadrant_ideal": "理想",
+        "quadrant_careless": "粗心",
+        "quadrant_review": "需复习",
+        "quadrant_slow": "需提速",
+        "axis_avg_time": "平均时间 (秒)",
+        "axis_accuracy": "准确率",
+        "select_widgets_label": "显示项目（拖动以重新排序）",
+        
+        # Weekly Report
+        "report_no_data": "无数据。",
+        "report_no_week_data": "过去7天无数据。",
+        "report_title": "{} 的周报",
+        "report_period": "期间: {} - {}",
+        "report_achievements": "本周成就",
+        "report_study_days": "- **学习天数**: {}天",
+        "report_total_problems": "- **总问题数**: {}题",
+        "report_total_time": "- **总学习时间**: {:.0f}分钟 ({:.1f}小时)",
+        "report_avg_accuracy": "- **平均准确率**: {:.1f}%",
+        "report_top_unit_title": "重点单元",
+        "report_top_unit_desc": "练习了 **{}** ({}题)！",
+        "report_ai_comment_title": "AI教练反馈",
+        "report_comment_excellent": "太棒了！保持这个状态。",
+        "report_comment_good": "稳步进步。专注于弱点！",
+        "report_comment_basic": "需要巩固基础。一步一步来。",
+        "report_next_goal_title": "下周目标",
+        "report_next_goal_desc": "目标准确率 **{:.0f}%**，加强复习！",
+        
+        # Roadmap
+        "rec_continue_advanced": "继续解决高级问题",
+        "rec_aim_high_accuracy": "旨在提高难题的准确率",
+        "rec_reduce_time": "专注于缩短答题时间",
+        "status_completed": "完成",
+        "status_in_progress": "进行中",
+        "status_not_started": "未开始",
         
         # Settings Tab
         "app_settings": "应用设置",
@@ -1151,14 +1536,44 @@ TRANSLATIONS = {
         "insight_urgent_warning": "⚠️ **注意**: 剩余{days_left}天需要提升{gap:.1%}。需要每天提升{required_daily_improvement:.2%}。建议集中学习。",
         "insight_on_track": "剩余{days_left}天可达成目标。保持当前节奏，加强弱点。",
         "insight_goal_achieved": "🎉 **目标达成**！保持当前实力，挑战更高难度。",
-        "insight_growth": "📈 **成长显著**！比上周提升+{improvement:.1%}。继续保持！",
-        "insight_decline": "比上周下降-{abs(improvement):.1%}。可能需要休息。不要着急，回归基础复习。",
-        "insight_time_over": "平均超过{time_excess:.0f}秒。是时候从「准确率」转向「速度」了。",
+        "insight_growth": "📈 **成长显著**！比上周提升+{:.1f}%。继续保持！",
+        "insight_decline": "比上周下降-{:.1f}%。可能需要休息。不要着急，回归基础复习。",
+        "insight_time_over": "平均超时 {time_excess:.0f} 秒。是时候从“准确率”转向“速度”了。",
         "insight_time_good": "解题速度足够。确保有时间检查以防粗心。",
+        
+        # Insight Categories & Advice
+        "cat_progress": "进度管理",
+        "cat_weakness": "弱点分析",
+        "cat_growth": "成长记录",
+        "cat_time": "时间管理",
+        "advice_inference": "养成画图整理思路的习惯。",
+        "advice_calculation": "养成估算的习惯以减少计算错误。",
+        "advice_english": "优先考虑阅读速度而非语法。目标是1秒/句。",
+        "advice_default": "重复基础题目，将模式铭记于心。",
+        "insight_weakness_msg": "**{}** 是最大的弱点（准确率 {:.1%}）。{}",
         
         # Heatmap
         "accuracy_by_field": "各领域正确率",
         "weakness_analysis_4_quadrants": "弱点分析 (4象限)",
+        "accuracy_vs_time": "正确率 vs 解答时间",
+        "high_accuracy_slow": "需要提速",
+        "high_accuracy_fast": "擅长・稳定",
+        "low_accuracy_slow": "需要基础复习",
+        "low_accuracy_fast": "注意粗心错误",
+        
+        # AI Problem Generation
+        "ai_problem_gen_title": "AI 练习题生成",
+        "ai_problem_gen_desc": "AI 自动为薄弱单元生成类似题目。",
+        "select_unit_label": "选择单元",
+        "generate_problem_btn": "生成题目",
+        "generating_problem_spinner": "AI 正在生成题目...",
+        "generated_problem_title": "### 已生成题目",
+        
+        # Prophet Errors
+        "prophet_not_installed": "未安装 Prophet",
+        "prophet_min_data": "预测至少需要 10 条数据",
+        "prophet_no_exam_date": "未设置考试日期",
+        "roadmap_error": "路线图生成错误: {}",
         
         # Date Formats
         "month_format": "{}年{}月",
@@ -1170,6 +1585,33 @@ TRANSLATIONS = {
         "search_google": "在Google上搜索",
         "resources": "学习资源",
         "watch_video": "📺 观看视频",
+        
+        # Flashcards Tab
+        "flashcards_title": "暗记卡 (语言)",
+        "flashcards_desc": "高效记忆语言部分的重要术语。",
+        "select_unit": "选择单元",
+        "no_cards_for_unit": "此单元无卡片。",
+        "answer": "答案",
+        "question": "问题",
+        "click_to_show_answer": "点击显示答案 (下方按钮)",
+        "flip": "翻转",
+        "next_card": "下一个",
+        "prev_card": "上一个",
+        "shuffle": "洗牌",
+        "card_counter": "卡片 {} / {}",
+
+        # Ranking Tab
+        "ranking_title": "学习时间排名",
+        "ranking_desc": "所有用户的总学习时间排名。争取名列前茅！",
+        "ranking_updating": "正在更新排名...",
+        "ranking_error": "排名获取错误: {}",
+        "your_rank": "您的排名",
+        "rank_suffix": "位",
+        "hours_suffix": " 小时",
+        "top_10_users": "前10名用户",
+        "no_ranking_data": "暂无排名数据。",
+        "user_label": "用户",
+        "study_time_hours": "学习时间 (小时)",
     }
 }
 
@@ -1262,7 +1704,7 @@ DATA_TRANSLATIONS = {
         "二語の関係": "二词关系",
         "熟語の成り立ち": "成语结构",
         "語句の定義": "词语定义",
-        "语句の用法": "词语用法",
+        "語句の用法": "词语用法",
         "空欄補充": "填空",
         "文の並べ替え": "句子排序",
         "長文読解": "长文阅读",

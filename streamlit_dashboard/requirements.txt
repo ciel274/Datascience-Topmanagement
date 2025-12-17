@@ -6,7 +6,7 @@ scikit-learn
 streamlit-antd-components
 
 # Advanced Features
-# prophet
+prophet
 openpyxl
 fpdf2
 
@@ -14,3 +14,5 @@ fpdf2
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+gspreadgoogle-generativeai
+pypdf

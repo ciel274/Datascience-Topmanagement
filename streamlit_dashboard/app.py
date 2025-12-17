@@ -1,19 +1,106 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
-import plotly.graph_objects as go
 import plotly.express as px
-import json
+import plotly.graph_objects as go
+from datetime import datetime, timedelta, date
 import os
 import glob
-import time
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder
-import streamlit_antd_components as sac
-import google_calendar_utils
-import app_translations as tr
+import json
+import calendar
 import urllib.parse
+import streamlit_antd_components as sac
+from google_calendar_utils import get_calendar_service, add_event_to_calendar
+from google_sheets_utils import GoogleSheetsManager
+import app_translations as tr
+from app_translations import TRANSLATIONS
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestRegressor
+import ai_utils
+from flashcard_data import FLASHCARD_DATA
+
+# Load translations
+if "language" not in st.session_state:
+    st.session_state.language = "日本語" # Default language
+
+# --- Global CSS Animations ---
+st.markdown("""
+<style>
+/* Fade-in animation for main content */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.stApp {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* Hover effect for metric cards (if they use st.metric or custom containers) */
+div[data-testid="stMetric"] {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    padding: 10px;
+    border-radius: 8px;
+}
+div[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background-color: rgba(255, 255, 255, 0.05); /* Subtle highlight */
+}
+
+/* Pulse animation for urgent alerts */
+@keyframes pulse-red {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+div[data-testid="stAlert"][class*="danger"] {
+    animation: pulse-red 2s infinite;
+}
+
+/* Smooth transition for tabs */
+div[data-testid="stTabs"] button {
+    transition: all 0.3s ease;
+}
+
+/* Button Hover Animation (Scale Up) */
+div[data-testid="stButton"] button {
+    transition: transform 0.1s ease-in-out, box-shadow 0.1s ease;
+}
+div[data-testid="stButton"] button:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+div[data-testid="stButton"] button:active {
+    transform: scale(0.98);
+}
+
+/* Chat Message Slide-in Animation */
+div[data-testid="stChatMessage"] {
+    animation: slideInLeft 0.3s ease-out;
+}
+@keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Input Field Focus Transition */
+div[data-testid="stTextInput"] input, div[data-testid="stNumberInput"] input {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+div[data-testid="stTextInput"] input:focus, div[data-testid="stNumberInput"] input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ダッシュボード表示設定の初期化
+if "dashboard_widgets_v2" not in st.session_state:
+    st.session_state.dashboard_widgets_v2 = ["主要指標", "学習カレンダー", "学習記録", "週間学習プラン"]
+elif "週間学習プラン" not in st.session_state.dashboard_widgets_v2:
+    st.session_state.dashboard_widgets_v2.append("週間学習プラン")
 
 def t(key):
     return tr.get_text(key, st.session_state.get("language", "日本語"))
@@ -147,48 +234,85 @@ def generate_weekly_study_plan(df, exam_date, target_rate, current_rate):
     daily_limit_mins = st.session_state.get("daily_study_time", 60)
     unit_time_mins = 20 # 1単元あたりの想定時間
     
-    for day in range(min(7, days_left)):
+    # 過去7日 + 未来28日 (約1ヶ月)
+    start_day = -7
+    end_day = min(28, days_left + 1)
+    
+    for day in range(start_day, end_day):
         date = today + timedelta(days=day)
-        date_str = date.strftime("%m/%d (%a)")
+        date_str = date.strftime("%Y-%m-%d")
         
         todays_units = []
         current_time = 0
         
-        # A. 復習単元を優先的に追加
-        reviews = review_candidates.get(date, [])
-        for unit in reviews:
-            if current_time + unit_time_mins <= daily_limit_mins:
-                todays_units.append({"name": dt(unit), "type": t("plan_review")})
-                current_time += unit_time_mins
-        
-        # B. 時間が余っていれば弱点単元を追加
-        weak_idx = 0
-        while current_time + unit_time_mins <= daily_limit_mins and weak_idx < len(weak_list):
-            unit = weak_list[weak_idx]
-            # まだリストになければ追加
-            if not any(u["name"] == dt(unit) for u in todays_units):
-                todays_units.append({"name": dt(unit), "type": t("plan_weakness")})
-                current_time += unit_time_mins
-            weak_idx += 1
+        if day < 0:
+            # 過去: 学習ログから実績を表示
+            if not df.empty:
+                # date_objは既に作成済みと仮定、なければ作成
+                if "date_obj" not in df.columns:
+                    df["date_obj"] = pd.to_datetime(df["日付"]).dt.date
+                
+                day_logs = df[df["date_obj"] == date]
+                for _, row in day_logs.iterrows():
+                    # 重複排除（同じ単元を複数回やった場合など）
+                    if not any(u["name"] == dt(row["単元"]) for u in todays_units):
+                        todays_units.append({
+                            "name": dt(row["単元"]),
+                            "type": t("completed"), # "完了" or similar
+                            "subject": row["科目"]
+                        })
+                        current_time += row.get("学習投入時間(分)", 20) # データがなければ20分仮定
+        else:
+            # 未来: プラン生成 (既存ロジック)
             
-        # C. それでも時間が余っていれば、ランダムまたは次の弱点を追加
-        # (ここではシンプルに弱点リストをループ)
-        while current_time + unit_time_mins <= daily_limit_mins:
-             if weak_idx < len(weak_list):
+            # A. 復習単元を優先的に追加
+            reviews = review_candidates.get(date, [])
+            for unit in reviews:
+                if current_time + unit_time_mins <= daily_limit_mins:
+                    # 科目を特定（dfから）
+                    subject = df[df["単元"] == unit]["科目"].iloc[0] if not df[df["単元"] == unit].empty else "復習"
+                    todays_units.append({"name": dt(unit), "type": t("plan_review"), "subject": subject})
+                    current_time += unit_time_mins
+            
+            # B. 時間が余っていれば弱点単元を追加
+            weak_idx = 0
+            while current_time + unit_time_mins <= daily_limit_mins and weak_idx < len(weak_list):
                 unit = weak_list[weak_idx]
+                # まだリストになければ追加
                 if not any(u["name"] == dt(unit) for u in todays_units):
-                    todays_units.append({"name": dt(unit), "type": t("study")})
+                    subject = df[df["単元"] == unit]["科目"].iloc[0] if not df[df["単元"] == unit].empty else "弱点"
+                    todays_units.append({"name": dt(unit), "type": t("plan_weakness"), "subject": subject})
                     current_time += unit_time_mins
                 weak_idx += 1
-             else:
-                 break # 弱点リスト一巡したら終了
-        
+                
+            # C. それでも時間が余っていれば、ランダムまたは次の弱点を追加
+            while current_time + unit_time_mins <= daily_limit_mins:
+                 if weak_idx < len(weak_list):
+                    unit = weak_list[weak_idx]
+                    if not any(u["name"] == dt(unit) for u in todays_units):
+                        subject = df[df["単元"] == unit]["科目"].iloc[0] if not df[df["単元"] == unit].empty else "演習"
+                        todays_units.append({"name": dt(unit), "type": t("study"), "subject": subject})
+                        current_time += unit_time_mins
+                    weak_idx += 1
+                 else:
+                     break 
+            
+            # D. 最低限の学習を保証 (時間が埋まってなくても、まだ何もなければ追加)
+            if not todays_units and weak_list:
+                unit = weak_list[0]
+                subject = df[df["単元"] == unit]["科目"].iloc[0] if not df[df["単元"] == unit].empty else "演習"
+                todays_units.append({"name": dt(unit), "type": t("plan_weakness"), "subject": subject})
+                current_time += unit_time_mins
+
         if todays_units:
             weekly_plan[date_str] = {
                 "units": todays_units,
-                "time_minutes": current_time
+                "time_minutes": int(current_time)
             }
-    
+        else:
+             # データがない場合も空エントリを追加して、カレンダー上で日付が表示されるようにする
+             weekly_plan[date_str] = {"units": [], "time_minutes": 0}
+
     return weekly_plan
 
 def generate_ai_advice(current_rate, target_rate, time_excess_rate, streak_days):
@@ -590,22 +714,20 @@ def generate_detailed_insights(df, current_rate, target_rate, exam_date=None):
             worst_unit = weak_units.index[0]
             worst_accuracy = weak_units.iloc[0]["accuracy"]
             
-            # 単元別の具体的アドバイス（ルールベース）
+            # 弱点単元へのアドバイス
             unit_advice = {
-                "推論": "前提→結論の論理構造を意識し、命題の真偽を慎重に判断しましょう",
-                "数的推理": "公式の丸暗記より、問題のパターン認識を優先しましょう",
-                "判断推理": "図やテーブルを必ず描き、視覚的に整理しましょう",
-                "資料解釈": "計算ミスを減らすため、概数で当たりをつける習慣を",
-                "英語": "文法より読解スピードを優先。1文1秒ペースを目標に"
+                "推論": t("advice_inference"),
+                "計算・文章題": t("advice_calculation"),
+                "英語": t("advice_english")
             }
             
-            advice = unit_advice.get(worst_unit, "基礎問題を繰り返し、パターンを体に染み込ませましょう")
+            advice = unit_advice.get(worst_unit, t("advice_default"))
             
             insights.append({
-                "category": "弱点分析",
+                "category": t("cat_weakness"),
                 "icon": "exclamation-triangle",
                 "priority": "high",
-                "message": f"**{dt(worst_unit)}**が最大の弱点です（正答率{worst_accuracy:.1%}）。{advice}"
+                "message": t("insight_weakness_msg").format(dt(worst_unit), worst_accuracy, advice)
             })
     
     # 3. ペース分析
@@ -619,21 +741,21 @@ def generate_detailed_insights(df, current_rate, target_rate, exam_date=None):
             
             if gap > 0.2 and days_left < 30:
                 insights.append({
-                    "category": "進捗管理",
+                    "category": t("cat_progress"),
                     "icon": "speedometer",
                     "priority": "urgent",
                     "message": t("insight_urgent_warning").format(days_left=days_left, gap=gap*100, required_daily_improvement=required_daily_improvement*100)
                 })
             elif gap > 0 and days_left >= 30:
                 insights.append({
-                    "category": "進捗管理",
+                    "category": t("cat_progress"),
                     "icon": "graph-up",
                     "priority": "medium",
                     "message": t("insight_on_track").format(days_left)
                 })
             elif gap <= 0:
                 insights.append({
-                    "category": "進捗管理",
+                    "category": t("cat_progress"),
                     "icon": "trophy",
                     "priority": "low",
                     "message": t("insight_goal_achieved")
@@ -656,14 +778,14 @@ def generate_detailed_insights(df, current_rate, target_rate, exam_date=None):
             
             if improvement > 0.05:
                 insights.append({
-                    "category": "成長記録",
+                    "category": t("cat_growth"),
                     "icon": "arrow-up-circle",
                     "priority": "medium",
                     "message": t("insight_growth").format(improvement*100)
                 })
             elif improvement < -0.05:
                 insights.append({
-                    "category": "成長記録",
+                    "category": t("cat_growth"),
                     "icon": "arrow-down-circle",
                     "priority": "medium",
                     "message": t("insight_decline").format(abs(improvement)*100)
@@ -675,14 +797,14 @@ def generate_detailed_insights(df, current_rate, target_rate, exam_date=None):
         
         if time_excess > 10:
             insights.append({
-                "category": "時間管理",
+                "category": t("cat_time"),
                 "icon": "hourglass-split",
                 "priority": "medium",
                 "message": t("insight_time_over").format(time_excess=time_excess)
             })
         elif time_excess < -5:
             insights.append({
-                "category": "時間管理",
+                "category": t("cat_time"),
                 "icon": "lightning",
                 "priority": "low",
                 "message": t("insight_time_good")
@@ -823,9 +945,9 @@ def generate_study_roadmap_detailed(df, df_master):
             if difficulty_stats["中"]["accuracy"] >= 0.8 and difficulty_stats["中"]["coverage"] >= 70:
                 current_phase = "応用演習"
                 next_recommendations = [
-                    "応用問題を継続して解きましょう",
-                    "高難易度問題の正答率向上を目指しましょう",
-                    "解答時間の短縮にも意識を向けましょう"
+                    t("rec_continue_advanced"),
+                    t("rec_aim_high_accuracy"),
+                    t("rec_reduce_time")
                 ]
             else:
                 current_phase = "標準演習"
@@ -868,7 +990,7 @@ def generate_study_roadmap_detailed(df, df_master):
         
         # ビジュアライゼーション用データ作成
         roadmap_data = {
-            "phase": ["基礎固め", "標準演習", "応用演習"],
+            "phase": [t("phase_foundation"), t("phase_standard"), t("phase_advanced")],
             "progress": [
                 difficulty_stats["低"]["coverage"],
                 difficulty_stats["中"]["coverage"],
@@ -885,127 +1007,83 @@ def generate_study_roadmap_detailed(df, df_master):
                 difficulty_stats["高"]["accuracy"] * 100
             ],
             "status": [
-                "完了" if difficulty_stats["低"]["accuracy"] >= 0.8 and difficulty_stats["低"]["coverage"] >= 70 else "進行中" if difficulty_stats["低"]["attempts"] > 0 else "未着手",
-                "完了" if difficulty_stats["中"]["accuracy"] >= 0.8 and difficulty_stats["中"]["coverage"] >= 70 else "進行中" if difficulty_stats["中"]["attempts"] > 0 else "未着手",
-                "完了" if difficulty_stats["高"]["accuracy"] >= 0.8 and difficulty_stats["高"]["coverage"] >= 70 else "進行中" if difficulty_stats["高"]["attempts"] > 0 else "未着手"
+                t("status_completed") if difficulty_stats["低"]["accuracy"] >= 0.8 and difficulty_stats["低"]["coverage"] >= 70 else t("status_in_progress") if difficulty_stats["低"]["attempts"] > 0 else t("status_not_started"),
+                t("status_completed") if difficulty_stats["中"]["accuracy"] >= 0.8 and difficulty_stats["中"]["coverage"] >= 70 else t("status_in_progress") if difficulty_stats["中"]["attempts"] > 0 else t("status_not_started"),
+                t("status_completed") if difficulty_stats["高"]["accuracy"] >= 0.8 and difficulty_stats["高"]["coverage"] >= 70 else t("status_in_progress") if difficulty_stats["高"]["attempts"] > 0 else t("status_not_started")
             ]
         }
         
         return roadmap_data, current_phase, next_recommendations
         
     except Exception as e:
-        st.error(f"ロードマップ生成エラー: {e}")
+        st.error(t("roadmap_error").format(e))
         return None, None, None
 
-def generate_sankey_diagram(df):
+def generate_stacked_bar_chart(df):
     """
-    学習フローのSankey Diagram生成
-    科目 → 単元 → 正誤結果 の3層フロー可視化
+    学習フローの積み上げ棒グラフ生成
+    単元ごとの正解・不正解数を積み上げ棒グラフで表示
     """
     if df.empty or len(df) < 5:
         return None
     
-    # データ集計: 科目 → 単元 → 正誤
-    flow_data = df.groupby(["科目", "単元", "正誤"]).size().reset_index(name="count")
+    # データ準備
+    df_bar = df.copy()
+    df_bar["正誤ラベル"] = df_bar["正誤"].apply(lambda x: t("correct") if x == "〇" else t("incorrect"))
+    df_bar["単元ラベル"] = df_bar["単元"].apply(dt)
     
-    # ノード定義
-    subjects = df["科目"].unique().tolist()
-    units = df["単元"].unique().tolist()
-    results = ["正解", "不正解"]
+    # 集計: 単元・正誤ごとの件数
+    bar_data = df_bar.groupby(["単元ラベル", "正誤ラベル"]).size().reset_index(name="count")
     
-    # ノードリスト作成（科目 → 単元 → 結果の順）
-    node_labels = subjects + units + results
+    # 合計件数でソート（多い順）
+    total_counts = bar_data.groupby("単元ラベル")["count"].sum().sort_values(ascending=True)
+    bar_data["単元ラベル"] = pd.Categorical(bar_data["単元ラベル"], categories=total_counts.index, ordered=True)
+    bar_data = bar_data.sort_values("単元ラベル")
     
-    # 表示用ラベル（翻訳）
-    node_labels_display = [dt(s) for s in subjects] + [dt(u) for u in units] + [t("correct"), t("incorrect")]
+    # 積み上げ棒グラフ作成
+    fig = px.bar(
+        bar_data,
+        y="単元ラベル",
+        x="count",
+        color="正誤ラベル",
+        orientation='h',
+        color_discrete_map={
+            t("correct"): "rgba(16, 185, 129, 0.8)",   # Green with opacity
+            t("incorrect"): "rgba(239, 68, 68, 0.8)"   # Red with opacity
+        },
+        text="count"
+    )
     
-    node_colors = []
-    
-    # 科目の色（青系）
-    subject_colors = ["#3B82F6", "#6366F1", "#8B5CF6"]
-    for i in range(len(subjects)):
-        node_colors.append(subject_colors[i % len(subject_colors)])
-    
-    # 単元の色（グレー系）
-    for _ in units:
-        node_colors.append("#9CA3AF")
-    
-    # 結果の色（正解=緑、不正解=赤）
-    node_colors.append("#10B981")  # 正解
-    node_colors.append("#EF4444")  # 不正解
-    
-    # リンク定義
-    sources = []
-    targets = []
-    values = []
-    link_colors = []
-    
-    # 科目 → 単元 のリンク
-    for subject in subjects:
-        subject_idx = node_labels.index(subject)
-        subject_data = df[df["科目"] == subject]
-        
-        for unit in subject_data["単元"].unique():
-            unit_idx = node_labels.index(unit)
-            count = len(subject_data[subject_data["単元"] == unit])
-            
-            sources.append(subject_idx)
-            targets.append(unit_idx)
-            values.append(count)
-            link_colors.append("rgba(59, 130, 246, 0.3)")  # 薄い青
-    
-    # 単元 → 正誤 のリンク
-    for unit in units:
-        unit_idx = node_labels.index(unit)
-        unit_data = df[df["単元"] == unit]
-        
-        # 正解数
-        correct_count = len(unit_data[unit_data["正誤"] == "〇"])
-        if correct_count > 0:
-            sources.append(unit_idx)
-            targets.append(node_labels.index("正解"))
-            values.append(correct_count)
-            link_colors.append("rgba(16, 185, 129, 0.4)")  # 薄い緑
-        
-        # 不正解数
-        incorrect_count = len(unit_data[unit_data["正誤"] == "✕"])
-        if incorrect_count > 0:
-            sources.append(unit_idx)
-            targets.append(node_labels.index("不正解"))
-            values.append(incorrect_count)
-            link_colors.append("rgba(239, 68, 68, 0.4)")  # 薄い赤
-    
-    # Sankey図作成
-    fig = go.Figure(go.Sankey(
-        node=dict(
-            pad=15,
-            thickness=20,
-            line=dict(color="white", width=2),
-            label=node_labels_display,
-            color=node_colors,
-            hovertemplate='%{label}: %{value}問<extra></extra>'
-        ),
-        link=dict(
-            source=sources,
-            target=targets,
-            value=values,
-            color=link_colors,
-            hovertemplate='%{source.label} → %{target.label}: %{value}問<extra></extra>'
-        )
-    ))
+    fig.update_traces(
+        textposition='inside', 
+        textfont_color='white',
+        hovertemplate='%{y}<br>%{data.name}: %{x}問<extra></extra>'
+    )
     
     fig.update_layout(
         title=dict(
-            text="学習フローの可視化",
+            text=t("learning_flow_visualization"),
             font=dict(size=18, color="#111827", weight="bold"),
             x=0.5,
             xanchor="center"
         ),
-        font=dict(size=14, color="#000000", weight="bold"), # 文字色を完全な黒に、サイズアップ
-        height=500,
+        xaxis_title=None, # Remove redundant title
+        yaxis_title=None,
+        barmode='stack',
+        height=max(400, len(total_counts) * 30), # Increase height per bar
         margin=dict(l=10, r=10, t=50, b=10),
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)"
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title=None),
+        xaxis=dict(
+            showgrid=True, 
+            gridcolor='rgba(0,0,0,0.05)',
+            zeroline=False,
+            tickfont=dict(color="#4b5563")
+        ),
+        yaxis=dict(
+            tickfont=dict(color="#1f2937", size=13)
+        )
     )
     
     return fig
@@ -1015,7 +1093,7 @@ def generate_weekly_report(df):
     週報レポート生成（過去7日間の学習サマリー）
     """
     if df.empty:
-        return "データがありません。"
+        return t("report_no_data")
     
     today = datetime.today().date()
     week_ago = today - timedelta(days=7)
@@ -1025,7 +1103,7 @@ def generate_weekly_report(df):
     df_week = df[df["date_obj"] >= week_ago].copy()
     
     if df_week.empty:
-        return "過去7日間のデータがありません。"
+        return t("report_no_week_data")
     
     # 集計
     total_problems = len(df_week)
@@ -1040,32 +1118,32 @@ def generate_weekly_report(df):
     study_days = df_week["date_obj"].nunique()
     
     report = f"""
-### <i class="bi bi-bar-chart-fill"></i> **{st.session_state.current_user}さんの週報レポート**
-期間: {week_ago.strftime('%Y/%m/%d')} 〜 {today.strftime('%Y/%m/%d')}
+### <i class="bi bi-bar-chart-fill"></i> **{t("report_title").format(st.session_state.current_user)}**
+{t("report_period").format(week_ago.strftime('%Y/%m/%d'), today.strftime('%Y/%m/%d'))}
 
 ---
 
-### <i class="bi bi-graph-up"></i> 今週の成果
-- **学習日数**: {study_days}日
-- **総演習問題数**: {total_problems}問
-- **総学習時間**: {total_time:.0f}分 ({total_time/60:.1f}時間)
-- **平均正答率**: {accuracy:.1f}%
+### <i class="bi bi-graph-up"></i> {t("report_achievements")}
+{t("report_study_days").format(study_days)}
+{t("report_total_problems").format(total_problems)}
+{t("report_total_time").format(total_time, total_time/60)}
+{t("report_avg_accuracy").format(accuracy)}
 
-### <i class="bi bi-trophy-fill"></i> 最重点単元
-**{top_unit}** を {top_count}問 演習しました！
+### <i class="bi bi-trophy-fill"></i> {t("report_top_unit_title")}
+{t("report_top_unit_desc").format(dt(top_unit), top_count)}
 
-### <i class="bi bi-chat-quote-fill"></i> AIコーチからの総評
+### <i class="bi bi-chat-quote-fill"></i> {t("report_ai_comment_title")}
 """
     
     # 簡易的な総評ロジック
     if accuracy >= 80:
-        report += "素晴らしい！この調子で継続しましょう。"
+        report += t("report_comment_excellent")
     elif accuracy >= 60:
-        report += "着実に力をつけています。弱点を意識して復習を！"
+        report += t("report_comment_good")
     else:
-        report += "基礎固めが必要です。焦らずコツコツ進めましょう。"
+        report += t("report_comment_basic")
     
-    report += f"\n\n### <i class='bi bi-bullseye'></i> 来週の目標\n正答率 **{min(100, accuracy + 5):.0f}%** を目指して、復習を強化しましょう！\n"
+    report += f"\n\n### <i class='bi bi-bullseye'></i> {t('report_next_goal_title')}\n{t('report_next_goal_desc').format(min(100, accuracy + 5))}\n"
     
     return report
 
@@ -1077,13 +1155,13 @@ def predict_with_prophet(df, target_rate, exam_date):
     try:
         from prophet import Prophet
     except ImportError:
-        return None, "Prophetがインストールされていません"
+        return None, t("prophet_not_installed")
     
     if df.empty or len(df) < 10:
-        return None, "予測には最低10件のデータが必要です"
+        return None, t("prophet_min_data")
     
     if exam_date is None:
-        return None, "試験日が設定されていません"
+        return None, t("prophet_no_exam_date")
     
     # データ準備
     df_prophet = df.copy()
@@ -1134,18 +1212,24 @@ def predict_with_prophet(df, target_rate, exam_date):
         "actual_data": daily_accuracy
     }, None
 
-def generate_pdf_report(report_text, user_name):
+def generate_pdf_report(report_text, user_name, df=None):
     """
-    週報レポートをPDF化
+    週報レポートをPDF化（日本語対応・グラフ付き）
     """
     try:
         from fpdf import FPDF
         import io
+        import matplotlib.pyplot as plt
+        import tempfile
         
         class PDF(FPDF):
             def header(self):
                 # ヘッダー
-                self.set_font('Arial', 'B', 16)
+                # 日本語フォントが読み込まれていればそれを使う、なければArial
+                if 'jp' in self.font_files:
+                    self.set_font('jp', 'B', 16)
+                else:
+                    self.set_font('Arial', 'B', 16)
                 self.cell(0, 10, 'SPI Learning Report', 0, 1, 'C')
                 self.ln(5)
             
@@ -1156,25 +1240,61 @@ def generate_pdf_report(report_text, user_name):
                 self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
         
         pdf = PDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=10)
         
-        # レポート本文（Markdown記号を削除）
+        # フォント読み込み（NotoSansJP-Regular.ttf）
+        font_path = "fonts/NotoSansJP-Regular.ttf"
+        if os.path.exists(font_path):
+            pdf.add_font('jp', '', font_path, uni=True)
+            pdf.add_font('jp', 'B', font_path, uni=True) # Boldも同じフォントで代用
+            font_family = 'jp'
+        else:
+            font_family = 'Arial' # フォールバック
+            
+        pdf.add_page()
+        pdf.set_font(font_family, size=10)
+        
+        # --- グラフ生成と埋め込み ---
+        if df is not None and not df.empty:
+            try:
+                # 科目別正答率グラフ
+                plt.figure(figsize=(6, 4))
+                subject_acc = df.groupby("科目")["ミス"].agg(["sum", "count"]).reset_index()
+                subject_acc["accuracy"] = (subject_acc["count"] - subject_acc["sum"]) / subject_acc["count"]
+                
+                # 日本語フォント設定（matplotlib用）
+                # 環境によっては豆腐になるため、英語ラベルにするか、フォントパスを指定する
+                # ここでは簡易的に英語ラベルを使用
+                plt.bar(subject_acc["科目"], subject_acc["accuracy"], color="#3B82F6")
+                plt.title("Subject Accuracy")
+                plt.ylim(0, 1)
+                plt.ylabel("Accuracy")
+                
+                # 一時ファイルに保存
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+                    plt.savefig(tmp_file.name, format="png", dpi=100)
+                    tmp_path = tmp_file.name
+                
+                # PDFに追加
+                pdf.image(tmp_path, x=10, y=30, w=100)
+                pdf.ln(80) # 画像分スペースを空ける
+                
+                # 後始末
+                os.remove(tmp_path)
+            except Exception as e:
+                pdf.multi_cell(0, 5, f"[Graph Error: {e}]")
+                pdf.ln(5)
+
+        # レポート本文
         clean_text = report_text.replace("**", "").replace("###", "").replace("##", "").replace("*", "")
         
-        # 行ごとに分割して追加
         for line in clean_text.split("\n"):
             if line.strip():
-                # 日本語を含む場合はエンコーディング処理
                 try:
-                    # Latin-1でエンコード可能な文字のみ使用
-                    safe_line = line.encode('latin-1', 'ignore').decode('latin-1')
-                    pdf.multi_cell(0, 5, safe_line)
+                    pdf.multi_cell(0, 6, line)
                 except:
-                    # エンコードエラーの場合はスキップ
-                    pdf.multi_cell(0, 5, "[Japanese text]")
+                    pdf.multi_cell(0, 6, "[Text Error]")
             else:
-                pdf.ln(2)
+                pdf.ln(3)
         
         # バイナリデータとして返す
         pdf_output = io.BytesIO()
@@ -1185,6 +1305,9 @@ def generate_pdf_report(report_text, user_name):
         return pdf_output
         
     except ImportError:
+        return None
+    except Exception as e:
+        st.error(f"PDF Generation Error: {e}")
         return None
 
 def generate_excel_report(df, user_name):
@@ -1904,6 +2027,48 @@ base_css = """
   .badge-container { flex-wrap: wrap; }
 }
 
+@media (max-width: 768px) {
+    /* KPIグリッドを1列に */
+    .kpi-grid { grid-template-columns: 1fr; gap: 12px; }
+    
+    /* 週間プランの横スクロールコンテナ */
+    .weekly-plan-container {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 12px;
+        padding-bottom: 12px;
+        -webkit-overflow-scrolling: touch; /* iOS用スムーズスクロール */
+    }
+    
+    /* 週間プランの各カラム（Streamlitのcolumnはdiv[data-testid="column"]） */
+    .weekly-plan-container > div {
+        min-width: 140px; /* スマホでの最小幅 */
+        flex: 0 0 auto; /* 縮小しない */
+    }
+    
+    /* 暗記カード */
+    .flashcard {
+        padding: 24px 16px !important;
+        min-height: 180px !important;
+    }
+    .fc-content { font-size: 1.2rem !important; }
+    
+    /* タブ */
+    .stApp .ant-tabs-nav-list {
+        display: flex;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    /* 全体の余白調整 */
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+}
+}
+
 /* ============================================
    サイドバーのフォーム要素 - 統一デザインシステム
    ============================================ */
@@ -2179,57 +2344,52 @@ with st.sidebar.expander(t("input_data_title"), expanded=expanded_flag):
         
         # ログデータ（CSV）への保存
         # 既存のCSVがある場合は読み込んで追記、なければ新規作成
-        if os.path.exists(user_log_path):
-            try:
-                df_current = pd.read_csv(user_log_path)
-                df_new = pd.concat([df_current, pd.DataFrame([new_entry])], ignore_index=True)
-                df_new.to_csv(user_log_path, index=False)
-            except Exception as e:
-                st.error(f"ログ保存エラー: {e}")
+        # スプレッドシートに追加
+        success, err = st.session_state.sheets_manager.add_data(st.session_state.current_user, new_entry)
+        
+        if success:
+            # キャッシュをクリアして再読み込みさせるためにリラン
+            load_sheet_data.clear()
+            
+            # ノートがある場合
+            if input_memo and input_memo.strip():
+                note_entry = {
+                    "問題ID": current_pid,
+                    "メモ": input_memo.strip(),
+                    "登録日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.session_state.sheets_manager.add_note(st.session_state.current_user, note_entry)
+                load_note_data.clear()
+                
+            st.session_state.show_success_toast = True
+            st.session_state.expander_open = True
         else:
-            # CSVがない場合は新規作成
-            pd.DataFrame([new_entry]).to_csv(user_log_path, index=False)
-
-        # セッションステートも更新（フォールバック用）
-        st.session_state.df_log_manual = pd.concat(
-            [st.session_state.df_log_manual, pd.DataFrame([new_entry])],
-            ignore_index=True
-        )
-        
-        # メモ保存
-        if input_memo and input_memo.strip():
-            note_entry = {
-                "問題ID": current_pid,
-                "メモ": input_memo.strip(),
-                "登録日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            st.session_state.df_notes = pd.concat(
-                [st.session_state.df_notes, pd.DataFrame([note_entry])],
-                ignore_index=True
-            )
-            st.session_state.df_notes.to_csv(user_notes_path, index=False)
-        
-        # st.toast("データを追加しました", icon="✅")
-        st.session_state.show_success_toast = True
-        st.session_state.expander_open = True
+            st.error(f"保存に失敗しました: {err}")
 
     st.button(t("add_data_btn"), type="primary", use_container_width=True, key="add_btn", on_click=add_data_callback, args=(pid,))
 
+# スプレッドシートマネージャーの初期化
+if "sheets_manager" not in st.session_state:
+    st.session_state.sheets_manager = GoogleSheetsManager()
+
 # 3. ユーザー管理
 with st.sidebar.expander(t("user_management"), expanded=False):
-    # user_dataディレクトリ作成
-    if not os.path.exists(st.session_state.user_data_dir):
-        os.makedirs(st.session_state.user_data_dir)
+    # スプレッドシートからユーザー（シート一覧）を取得
+    success, error = st.session_state.sheets_manager.connect()
     
-    # 既存ユーザーの取得
-    user_files = glob.glob(f"{st.session_state.user_data_dir}/*.csv")
-    existing_users = [os.path.basename(f).replace(".csv", "") for f in user_files]
+    existing_users = []
+    if success:
+        try:
+            worksheets = st.session_state.sheets_manager.spreadsheet.worksheets()
+            existing_users = [ws.title for ws in worksheets if not ws.title.endswith("_notes")]
+        except:
+            pass
+    else:
+        st.sidebar.error(f"Google Sheets接続エラー: {error}")
     
-    # デフォルトユーザーが存在しない場合は追加
     if t("default_user") not in existing_users:
         existing_users.insert(0, t("default_user"))
     
-    # ユーザー選択
     selected_user = st.selectbox(
         t("select_user"),
         options=[t("create_new_user")] + existing_users,
@@ -2242,12 +2402,13 @@ with st.sidebar.expander(t("user_management"), expanded=False):
         new_user = st.text_input(t("new_user_name"), placeholder=t("new_user_placeholder"))
         if st.button(t("create_user_btn")) and new_user:
             if new_user not in existing_users:
-                st.session_state.current_user = new_user
-                # 空のCSVを作成
-                empty_df = pd.DataFrame(columns=["日付", "問題ID", "正誤", "解答時間(秒)", "ミスの原因", "学習投入時間(分)"])
-                empty_df.to_csv(f"{st.session_state.user_data_dir}/{new_user}.csv", index=False)
-                st.success(t("user_created").format(new_user))
-                trigger_rerun()
+                _, err = st.session_state.sheets_manager.get_or_create_user_sheet(new_user)
+                if not err:
+                    st.session_state.current_user = new_user
+                    st.success(t("user_created").format(new_user))
+                    trigger_rerun()
+                else:
+                    st.error(f"ユーザー作成エラー: {err}")
             else:
                 st.error(t("user_exists"))
     elif selected_user != st.session_state.current_user:
@@ -2256,7 +2417,7 @@ with st.sidebar.expander(t("user_management"), expanded=False):
     
     st.markdown(f"**{t('current_user')}:** {st.session_state.current_user}")
 
-# 4. ファイルアップロードセクション
+# 4. ファイルアップロードセクション (CSVインポート機能として残す)
 st.sidebar.markdown(f'<div class="chart-header" style="font-size:0.9rem; margin-bottom:8px;"><i class="bi bi-folder icon-badge" style="width:24px; height:24px; font-size:0.9rem;"></i>{t("file_management")}</div>', unsafe_allow_html=True)
 with st.sidebar.expander(t("file_details"), expanded=False):
     st.markdown(f"<p class='input-label'>{t('master_csv')}</p>", unsafe_allow_html=True)
@@ -2265,7 +2426,7 @@ with st.sidebar.expander(t("file_details"), expanded=False):
     st.markdown(f"<p class='input-label'>{t('log_csv')}</p>", unsafe_allow_html=True)
     log_file = st.file_uploader(t("log_csv"), type=["csv"], key="log", label_visibility="collapsed")
 
-# マスタ読み込み処理（ファイル管理の後で更新）
+# マスタ読み込み処理
 if master_file:
     try:
         st.session_state.df_master = pd.read_csv(master_file)
@@ -2274,73 +2435,63 @@ if master_file:
     except:
         with st.sidebar:
             sac.alert(t("master_failed"), icon='x-circle', color='error', size='sm')
+
+# ログデータの取得（スプレッドシートから）
+@st.cache_data(ttl=60)
+def load_sheet_data(username):
+    return st.session_state.sheets_manager.load_data(username)
+
+df_log_result, load_err = load_sheet_data(st.session_state.current_user)
+
+if load_err:
+    df_log = pd.DataFrame(columns=["日付", "問題ID", "正誤", "解答時間(秒)", "ミスの原因", "学習投入時間(分)"])
+    if "シート取得エラー" not in str(load_err):
+        st.sidebar.error(f"データ読み込みエラー: {load_err}")
 else:
-    # アップロードがない場合はデフォルト（初期化済み）
-    pass
+    df_log = df_log_result
+    # 必須カラムの存在確認と補完
+    required_columns = ["日付", "問題ID", "正誤", "解答時間(秒)", "ミスの原因", "学習投入時間(分)"]
+    for col in required_columns:
+        if col not in df_log.columns:
+            df_log[col] = pd.Series(dtype='object')
 
-# ログデータの取得
-
+# CSVアップロード時の同期処理
 if log_file:
-    # アップロードされたファイルが前回と同じかチェック（ファイル名やサイズで簡易判定）
     file_id = f"{log_file.name}_{log_file.size}"
     if st.session_state.get("processed_log_file") != file_id:
         try:
-            df_upload = pd.read_csv(log_file)
+            # 一時ファイルに保存して同期
+            with open("temp_upload.csv", "wb") as f:
+                f.write(log_file.getbuffer())
             
-            # 既存データがある場合はマージする
-            if os.path.exists(user_log_path):
-                try:
-                    df_current = pd.read_csv(user_log_path)
-                    # 共通のカラムを持つ場合のみ連結、あるいは単純連結
-                    df_log = pd.concat([df_current, df_upload], ignore_index=True)
-                except:
-                    df_log = df_upload
+            success, err = st.session_state.sheets_manager.sync_from_csv(st.session_state.current_user, "temp_upload.csv")
+            if success:
+                st.session_state.processed_log_file = file_id
+                load_sheet_data.clear() # キャッシュクリア
+                trigger_rerun()
             else:
-                df_log = df_upload
+                st.sidebar.error(f"同期エラー: {err}")
             
-            # ユーザーのファイルに保存（マージ結果）
-            df_log.to_csv(user_log_path, index=False)
-            st.session_state.processed_log_file = file_id
-            # マニュアル入力用DFも更新
-            st.session_state.df_log_manual = df_log.copy()
-            with st.sidebar:
-                sac.alert(t("log_merged"), icon='check-circle', color='success', size='sm')
-        except:
-            df_log = st.session_state.df_log_manual.copy()
-            with st.sidebar:
-                sac.alert(t("log_failed"), icon='x-circle', color='error', size='sm')
-    else:
-        # 既に処理済みの場合は、保存されたファイル（最新の状態）を読み込む
-        if os.path.exists(user_log_path):
-            try:
-                df_log = pd.read_csv(user_log_path)
-                # マニュアル入力用DFも同期
-                st.session_state.df_log_manual = df_log.copy()
-            except:
-                df_log = st.session_state.df_log_manual.copy()
-        else:
-             df_log = st.session_state.df_log_manual.copy()
-else:
-    # ユーザーのファイルが存在すれば読み込み
-    if os.path.exists(user_log_path):
-        try:
-            df_log = pd.read_csv(user_log_path)
-            # マニュアル入力用DFも同期
-            st.session_state.df_log_manual = df_log.copy()
-        except:
-            df_log = st.session_state.df_log_manual.copy()
-    else:
-        df_log = st.session_state.df_log_manual.copy()
+            if os.path.exists("temp_upload.csv"):
+                os.remove("temp_upload.csv")
+        except Exception as e:
+            st.sidebar.error(f"アップロード処理エラー: {str(e)}")
 
-# ノートデータの取得（ユーザー別）
-if os.path.exists(user_notes_path):
-    try:
-        st.session_state.df_notes = pd.read_csv(user_notes_path)
-    except:
-        st.session_state.df_notes = pd.DataFrame(columns=["問題ID", "メモ", "登録日時"])
-else:
-    # ファイルが存在しなければ空のDataFrame
+# マニュアル入力用DFも同期
+if "df_log_manual" not in st.session_state or st.session_state.get("last_user") != st.session_state.current_user:
+    st.session_state.df_log_manual = df_log.copy()
+    st.session_state.last_user = st.session_state.current_user
+
+# ノートデータの取得
+@st.cache_data(ttl=60)
+def load_note_data(username):
+    return st.session_state.sheets_manager.load_notes(username)
+
+df_notes_result, note_err = load_note_data(st.session_state.current_user)
+if note_err:
     st.session_state.df_notes = pd.DataFrame(columns=["問題ID", "メモ", "登録日時"])
+else:
+    st.session_state.df_notes = df_notes_result
 
 # マスタデータ変数をローカル変数にセット（後続処理用）
 df_master = st.session_state.df_master
@@ -2430,16 +2581,19 @@ try:
         cs = pd.DataFrame()
         # bd は初期化済み
 
+    # 総演習数（全期間）
+    total_att = len(df_all)
+
     # ===== バッジ判定ロジック =====
     badges = []
 
     # 1. 初心者 (10問以上)
-    if att >= 10:
+    if total_att >= 10:
         badges.append(f"<i class='bi bi-egg-fill'></i> {t('beginner_badge')}")
 
     # 2. 継続日数 (Streak)
-    if not df.empty:
-        dates = sorted(df["日付"].dropna().dt.date.unique())
+    if not df_all.empty:
+        dates = sorted(df_all["日付"].dropna().dt.date.unique())
         if len(dates) > 0:
             # streak は初期化済み (0)
             streak = 1
@@ -2498,12 +2652,12 @@ title_text = t("app_title")
 company_val = st.session_state.get('company_name', '')
 if not company_val:
     company_val = t("target_company") if st.session_state.language == "English" else t('target_company') # Fallback or just use t()
-    company_val = t("target_company") # Simplified
 target_lbl = t("goal_label")
 policy_val = st.session_state.get('time_policy',t('standard'))
 
 # カウントダウン
 countdown_html = ""
+days_left = "-"
 if st.session_state.exam_date:
     days_left = (pd.to_datetime(st.session_state.exam_date) - pd.to_datetime(datetime.today().date())).days
     if days_left >= 0:
@@ -2594,9 +2748,7 @@ if not df.empty:
             tc = cau.iloc[0][t("cause")] if not cau.empty else t("unknown")
             rsn = f"{t('accuracy_rate')}{top_unit_accuracy:.0%}。" + (t("time_shortage_issue") if te > 0.3 else f"「{tc}」{t('main_cause_review_field')}")
             
-            # 検索用URL生成
             unit_name = tu['単元']
-            encoded_unit = urllib.parse.quote(f"SPI {unit_name}")
             
             st.markdown(f"""
 <div class="action-card" style="height: 100%;">
@@ -2609,18 +2761,7 @@ if not df.empty:
     <div class="action-unit">{dt(unit_name)}</div>
     <div class="action-reason">{rsn}</div>
     
-    <div style="margin-top: 12px; display: flex; gap: 8px;">
-        <a href="https://www.youtube.com/results?search_query={encoded_unit}" target="_blank" style="text-decoration: none;">
-            <div style="background: #FF0000; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s;">
-                <i class="bi bi-youtube"></i> YouTube
-            </div>
-        </a>
-        <a href="https://www.google.com/search?q={encoded_unit}+解説" target="_blank" style="text-decoration: none;">
-            <div style="background: #4285F4; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.2s;">
-                <i class="bi bi-google"></i> Google
-            </div>
-        </a>
-    </div>
+
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -2705,6 +2846,9 @@ tab_selection = sac.tabs([
     sac.TabsItem(label=t("tab_dashboard"), icon='bar-chart-fill'),
     sac.TabsItem(label=t("tab_data_list"), icon='table'),
     sac.TabsItem(label=t("tab_ai_analysis"), icon='robot'),
+    sac.TabsItem(label=t("tab_ai_chat"), icon='chat-dots-fill'),
+    sac.TabsItem(label=t("tab_ranking"), icon='trophy-fill'),
+    sac.TabsItem(label=t("tab_flashcards"), icon='card-text'),
     sac.TabsItem(label=t("tab_review_notes"), icon='journal-bookmark-fill'),
     sac.TabsItem(label=t("tab_settings"), icon='gear-fill'),
 ], align='center', size='lg', color='blue')
@@ -2716,260 +2860,678 @@ if tab_selection == t("tab_dashboard"):
     else:
         # st.markdown("### 📊 主要指標") # Removed
         
-        # AIコーチ
+        # AIコーチ (常に表示)
         advice_text = generate_ai_advice(cor_r, tgt_r, te, streak)
         sac.alert(advice_text, icon='lightbulb', color='info', size='sm')
 
-        # KPI ストリップ (Unified Design)
-        st.markdown("""
-        <style>
-        .stats-strip {
-            background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            border-radius: 16px;
-            padding: 20px 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-evenly;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            margin-top: 16px;
-            margin-bottom: 24px;
-        }
-        .stat-item {
-            flex: 1;
-            text-align: center;
-            border-right: 1px solid rgba(0,0,0,0.06);
-            padding: 0 12px; /* 少し詰める */
-        }
-        .stat-item:last-child { border-right: none; }
-        .stat-label { 
-            color: var(--neutral); font-size: 0.8rem; font-weight: 600; 
-            margin-bottom: 4px; letter-spacing: 0.03em;
-        }
-        .stat-value { 
-            font-size: 1.8rem; font-weight: 900; line-height: 1.1; 
-            margin-bottom: 2px;
-        }
-        .stat-sub { 
-            font-size: 0.7rem; color: var(--neutral); font-weight: 500; 
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        # ダッシュボード項目のレンダリング関数
+        def render_metrics():
+            # KPI ストリップ (Unified Design)
+            st.markdown("""
+            <style>
+            .stats-strip {
+                background: rgba(255, 255, 255, 0.6);
+                backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                border-radius: 16px;
+                padding: 20px 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-evenly;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+                margin-top: 16px;
+                margin-bottom: 24px;
+            }
+            .stat-item {
+                flex: 1;
+                text-align: center;
+                border-right: 1px solid rgba(0,0,0,0.06);
+                padding: 0 12px; /* 少し詰める */
+            }
+            .stat-item:last-child { border-right: none; }
+            .stat-label { 
+                color: var(--neutral); font-size: 0.8rem; font-weight: 600; 
+                margin-bottom: 4px; letter-spacing: 0.03em;
+            }
+            .stat-value { 
+                font-size: 1.8rem; font-weight: 900; line-height: 1.1; 
+                margin-bottom: 2px;
+            }
+            .stat-sub { 
+                font-size: 0.7rem; color: var(--neutral); font-weight: 500; 
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
-        # 値の計算
-        col_cor = SUCCESS if cor_r >= tgt_r else DANGER
-        gap = cor_r - tgt_r
-        col_gap = SUCCESS if gap >= 0 else DANGER
-        col_time = DANGER if te > 0.3 else SUCCESS
+            # 値の計算
+            col_cor = SUCCESS if cor_r >= tgt_r else DANGER
+            gap = cor_r - tgt_r
+            col_gap = SUCCESS if gap >= 0 else DANGER
+            col_time = DANGER if te > 0.3 else SUCCESS
 
-        st.markdown(f"""
-        <div class="stats-strip">
-            <div class="stat-item">
-                <div class="stat-label">{t("current_accuracy")}</div>
-                <div class="stat-value" style="color:{col_cor}">{cor_r:.0%}</div>
-                <div class="stat-sub">{t("period_average")}</div>
+            st.markdown(f"""
+            <div class="stats-strip">
+                <div class="stat-item">
+                    <div class="stat-label">{t("current_accuracy")}</div>
+                    <div class="stat-value" style="color:{col_cor}">{cor_r:.0%}</div>
+                    <div class="stat-sub">{t("period_average")}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">{t("gap_to_goal")}</div>
+                    <div class="stat-value" style="color:{col_gap}">{gap:+.0%}</div>
+                    <div class="stat-sub">{t("achieved") if gap>=0 else t("not_achieved")}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">{t("forecast")}</div>
+                    <div class="stat-value" style="color:{prediction_color}; font-size: 1.6rem;">{prediction_text}</div>
+                    <div class="stat-sub">{prediction_sub}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">{t("time_excess_rate")}</div>
+                    <div class="stat-value" style="color:{col_time}">{te:.0%}</div>
+                    <div class="stat-sub">{t("over_target_time")}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">{t("total_exercises")}</div>
+                    <div class="stat-value" style="color:var(--primary)">{att}</div>
+                    <div class="stat-sub">{t("total_problems")}</div>
+                </div>
             </div>
-            <div class="stat-item">
-                <div class="stat-label">{t("gap_to_goal")}</div>
-                <div class="stat-value" style="color:{col_gap}">{gap:+.0%}</div>
-                <div class="stat-sub">{t("achieved") if gap>=0 else t("not_achieved")}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">{t("forecast")}</div>
-                <div class="stat-value" style="color:{prediction_color}; font-size: 1.6rem;">{prediction_text}</div>
-                <div class="stat-sub">{prediction_sub}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">{t("time_excess_rate")}</div>
-                <div class="stat-value" style="color:{col_time}">{te:.0%}</div>
-                <div class="stat-sub">{t("over_target_time")}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">{t("total_exercises")}</div>
-                <div class="stat-value" style="color:var(--primary)">{att}</div>
-                <div class="stat-sub">{t("total_problems")}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-        # ===== 学習カレンダーヒートマップ =====
-        # ===== 学習カレンダー =====
-        with st.expander(t("study_calendar"), expanded=True):
-            # セッションステートで表示月を管理
-            if "calendar_year" not in st.session_state:
-                st.session_state.calendar_year = datetime.now().year
-            if "calendar_month" not in st.session_state:
-                st.session_state.calendar_month = datetime.now().month
-            
-            # 月間ナビゲーション
-            c_nav1, c_nav2, c_nav3 = st.columns([1, 5, 1])
-            with c_nav1:
-                if st.button(t("prev_month"), key="prev_month"):
-                    if st.session_state.calendar_month == 1:
-                        st.session_state.calendar_month = 12
-                        st.session_state.calendar_year -= 1
-                    else:
-                        st.session_state.calendar_month -= 1
-                    trigger_rerun()
-                    
-            with c_nav3:
-                if st.button(t("next_month"), key="next_month"):
-                    if st.session_state.calendar_month == 12:
-                        st.session_state.calendar_month = 1
-                        st.session_state.calendar_year += 1
-                    else:
-                        st.session_state.calendar_month += 1
-                    trigger_rerun()
-            
-            with c_nav2:
-                st.markdown(f"<div style='text-align: center; font-size: 1.1rem; font-weight: 700; padding: 8px;'>{st.session_state.calendar_year}{t('year')}{st.session_state.calendar_month}{t('month')}</div>", unsafe_allow_html=True)
-            
-            # 週間プランからカレンダー用のデータを生成
-            weekly_plan_for_calendar = {}
-            if st.session_state.exam_date:
-                # カレンダー表示月の日付範囲を計算
-                # 簡易的にその月の1日から末日までを対象とするが、
-                # generate_weekly_study_planは現在日からのプランを返すため、
-                # そのまま渡してカレンダー側でフィルタリングする
-                weekly_plan_data = generate_weekly_study_plan(
-                    df_all, 
-                    st.session_state.exam_date, 
-                    tgt_r, 
-                    cor_r
-                )
-                if weekly_plan_data:
-                    weekly_plan_for_calendar = weekly_plan_data
-            
-            # カレンダー表示
-            result = generate_calendar_heatmap(
-                df_all,
-                st.session_state.calendar_year,
-                st.session_state.calendar_month,
-                exam_date=st.session_state.exam_date,
-                weekly_plan=weekly_plan_for_calendar
-            )
-        
-            if result and result[0] and result[1]:
-                css, html = result
-                # CSSとHTMLを結合してcomponentsで表示
-                full_html = css + html
-                import streamlit.components.v1 as components
-                components.html(full_html, height=400, scrolling=False)
+        def render_calendar():
+            # ===== 学習カレンダー =====
+            with st.expander(t("study_calendar"), expanded=True):
+                # セッションステートで表示月を管理
+                if "calendar_year" not in st.session_state:
+                    st.session_state.calendar_year = datetime.now().year
+                if "calendar_month" not in st.session_state:
+                    st.session_state.calendar_month = datetime.now().month
                 
-                # カレンダー下の余白を減らす
-                st.markdown("<div style='margin-top: -80px;'></div>", unsafe_allow_html=True)
-                
-                # カレンダー下に統計情報を表示
-                col1, col2, col3 = st.columns(3)
-                
-                # 連続学習日数の計算
-                if not df_all.empty:
-                    df_with_date = df_all.copy()
-                    df_with_date["日付"] = pd.to_datetime(df_with_date["日付"]).dt.date
-                    unique_dates = sorted(df_with_date["日付"].unique(), reverse=True)
-                    
-                    current_streak = 0
-                    max_streak = 0
-                    temp_streak = 0
-                    
-                    if unique_dates:
-                        # 現在の連続日数
-                        today = datetime.today().date()
-                        if unique_dates[0] == today or (len(unique_dates) > 1 and unique_dates[0] == today - timedelta(days=1)):
-                            current_date = unique_dates[0]
-                            current_streak = 1
-                            for i in range(1, len(unique_dates)):
-                                if unique_dates[i] == current_date - timedelta(days=1):
-                                    current_streak += 1
-                                    current_date = unique_dates[i]
-                                else:
-                                    break
+                # 月間ナビゲーション
+                c_nav1, c_nav2, c_nav3 = st.columns([1, 5, 1])
+                with c_nav1:
+                    if st.button(t("prev_month"), key="prev_month"):
+                        if st.session_state.calendar_month == 1:
+                            st.session_state.calendar_month = 12
+                            st.session_state.calendar_year -= 1
+                        else:
+                            st.session_state.calendar_month -= 1
+                        trigger_rerun()
                         
-                        # 最長連続日数
-                        for i in range(len(unique_dates)):
-                            if i == 0:
-                                temp_streak = 1
-                            elif unique_dates[i-1] - unique_dates[i] == timedelta(days=1):
-                                temp_streak += 1
-                            else:
-                                max_streak = max(max_streak, temp_streak)
-                                temp_streak = 1
-                        max_streak = max(max_streak, temp_streak)
+                with c_nav3:
+                    if st.button(t("next_month"), key="next_month"):
+                        if st.session_state.calendar_month == 12:
+                            st.session_state.calendar_month = 1
+                            st.session_state.calendar_year += 1
+                        else:
+                            st.session_state.calendar_month += 1
+                        trigger_rerun()
+                
+                with c_nav2:
+                    st.markdown(f"<div style='text-align: center; font-size: 1.1rem; font-weight: 700; padding: 8px;'>{st.session_state.calendar_year}{t('year')}{st.session_state.calendar_month}{t('month')}</div>", unsafe_allow_html=True)
+                
+                # 週間プランからカレンダー用のデータを生成
+                weekly_plan_for_calendar = {}
+                if st.session_state.exam_date:
+                    weekly_plan_data = generate_weekly_study_plan(
+                        df_all, 
+                        st.session_state.exam_date, 
+                        tgt_r, 
+                        cor_r
+                    )
+                    if weekly_plan_data:
+                        weekly_plan_for_calendar = weekly_plan_data
+                
+                # カレンダー表示
+                result = generate_calendar_heatmap(
+                    df_all,
+                    st.session_state.calendar_year,
+                    st.session_state.calendar_month,
+                    exam_date=st.session_state.exam_date,
+                    weekly_plan=weekly_plan_for_calendar
+                )
+            
+                if result and result[0] and result[1]:
+                    css, html = result
+                    full_html = css + html
+                    import streamlit.components.v1 as components
+                    components.html(full_html, height=400, scrolling=False)
+                    st.markdown("<div style='margin-top: -80px;'></div>", unsafe_allow_html=True)
+
+        # 設定された順序でウィジェットを表示
+        widgets_map = {
+            "主要指標": render_metrics,
+            "学習カレンダー": render_calendar,
+            # "週間学習プラン": render_weekly_plan, # 後で定義
+            # "バッジ": render_badges # 後で定義
+        }
+        
+        # しかし、ユーザーは「並び替え」も求めているため、
+        # 全てのコンポーネントを関数化してリスト順に呼び出すのがベストです。
+        
+        # 残りのコンポーネントの関数化（インラインで定義）
+        def render_weekly_plan():
+            if st.session_state.exam_date:
+                sac.divider(label=t('weekly_learning_plan'), icon='calendar-week', align='left')
+                col_plan1, col_plan2 = st.columns([3, 1])
+                with col_plan1:
+                    st.caption(t("weekly_plan_desc"))
+                with col_plan2:
+                    if st.button(t("update_plan"), key="update_plan_btn"):
+                        trigger_rerun()
+                
+                # Use global df_all if available
+                target_df = df_all if 'df_all' in globals() and not df_all.empty else pd.DataFrame()
+                
+                plan_data = generate_weekly_study_plan(
+                    target_df, 
+                    st.session_state.exam_date, 
+                    st.session_state.target_rate_user / 100, 
+                    0
+                )
+                
+                if plan_data:
+                    # Pagination Logic
+                    plan_items = sorted(plan_data.items(), key=lambda x: x[0])
+                    total_days = len(plan_items)
+                    DAYS_PER_PAGE = 7
                     
-                    # 今月の統計
-                    today = datetime.today()
-                    this_month_data = df_with_date[
-                        (pd.to_datetime(df_with_date["日付"]).dt.month == today.month) &
-                        (pd.to_datetime(df_with_date["日付"]).dt.year == today.year)
-                    ]
-                    study_days_this_month = len(this_month_data["日付"].unique())
-                else:
-                    current_streak = 0
-                    max_streak = 0
-                    study_days_this_month = 0
-                
-                # 統計情報をカスタムスタイルで表示
-                st.markdown("""
-                <style>
-                .calendar-stat {
-                    text-align: center;
-                    padding: 12px;
-                    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-                    border-radius: 8px;
-                    border: 1px solid #e5e7eb;
-                }
-                .calendar-stat-icon {
-                    font-size: 1.5rem;
-                    color: #667eea;
-                    margin-bottom: 4px;
-                }
-                .calendar-stat-value {
-                    font-size: 1.8rem;
-                    font-weight: 800;
-                    color: #1f2937;
-                    margin: 4px 0;
-                }
-                .calendar-stat-label {
-                    font-size: 0.8rem;
-                    color: #6b7280;
-                    font-weight: 600;
-                }
-                </style>
-                """, unsafe_allow_html=True)
-                
-                col1_html = f"""
-                <div class="calendar-stat">
-                    <i class="bi bi-fire calendar-stat-icon"></i>
-                    <div class="calendar-stat-value">{current_streak}{t('days_unit')}</div>
-                    <div class="calendar-stat-label">{t('current_streak_study')}</div>
-                </div>
-                """
-                
-                col2_html = f"""
-                <div class="calendar-stat">
-                    <i class="bi bi-calendar-check calendar-stat-icon"></i>
-                    <div class="calendar-stat-value">{study_days_this_month}{t('days_unit')}</div>
-                    <div class="calendar-stat-label">{t('study_days_this_month')}</div>
-                </div>
-                """
-                
-                col3_html = f"""
-                <div class="calendar-stat">
-                    <i class="bi bi-trophy calendar-stat-icon"></i>
-                    <div class="calendar-stat-value">{max_streak}{t('days_unit')}</div>
-                    <div class="calendar-stat-label">{t('longest_streak_record')}</div>
-                </div>
-                """
-                
-                with col1:
-                    st.markdown(col1_html, unsafe_allow_html=True)
-                with col2:
-                    st.markdown(col2_html, unsafe_allow_html=True)
-                with col3:
-                    st.markdown(col3_html, unsafe_allow_html=True)
+                    # Find today's index
+                    today_str = datetime.now().strftime('%Y-%m-%d')
+                    today_idx = 0
+                    for i, (d_str, _) in enumerate(plan_items):
+                        if d_str == today_str:
+                            today_idx = i
+                            break
+                    
+                    if "plan_page_idx" not in st.session_state:
+                        st.session_state.plan_page_idx = today_idx // DAYS_PER_PAGE
+                        
+                    start_idx = st.session_state.plan_page_idx * DAYS_PER_PAGE
+                    # Boundary check
+                    if start_idx >= total_days or start_idx < 0:
+                         st.session_state.plan_page_idx = today_idx // DAYS_PER_PAGE
+                         start_idx = st.session_state.plan_page_idx * DAYS_PER_PAGE
+                    
+                    end_idx = min(start_idx + DAYS_PER_PAGE, total_days)
+                    
+                    
+                    # Navigation Buttons
+                    c_prev, c_mid, c_next = st.columns([1, 4, 1])
+                    with c_prev:
+                        if start_idx > 0:
+                            if st.button("← " + t("prev_week"), key="plan_prev_btn"):
+                                st.session_state.plan_page_idx -= 1
+                                trigger_rerun()
+                    with c_next:
+                        if end_idx < total_days:
+                            if st.button(t("next_week") + " →", key="plan_next_btn"):
+                                st.session_state.plan_page_idx += 1
+                                trigger_rerun()
+                    
+                    # 週間プラン表示コンテナ（CSSで横スクロール制御）
+                    st.markdown('<div class="weekly-plan-container">', unsafe_allow_html=True)
+                    
+                    current_items = plan_items[start_idx:end_idx]
+                    cols = st.columns(len(current_items))
+
+                    # Display Items
+                    current_items = plan_items[start_idx:end_idx]
+                    cols = st.columns(len(current_items))
+                    
+                    weekdays = [t("mon"), t("tue"), t("wed"), t("thu"), t("fri"), t("sat"), t("sun")]
+
+                    for i, col in enumerate(cols):
+                        date_str, plan = current_items[i]
+                        day_date = datetime.strptime(date_str, "%Y-%m-%d")
+                        is_today = (date_str == today_str)
+                        
+                        with col:
+                            # Header with increased margin (12px)
+                            bg_color = PRIMARY if is_today else "#f3f4f6"
+                            text_color = "white" if is_today else "#4b5563"
+                            wd = weekdays[day_date.weekday()]
+                            
+                            st.markdown(f"""
+                            <div style="background:{bg_color}; color:{text_color}; padding:4px; border-radius:4px 4px 0 0; text-align:center; font-weight:bold; font-size:0.8rem; width: 94%; margin: 0 auto 12px auto;">
+                                {wd}<br><span style="font-size:0.7rem;">{day_date.strftime('%m/%d')}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Content
+                            units = plan.get('units', [])
+                            
+                            # カード風コンテナ
+                            with st.container():
+                                # CSS: Sibling selector approach
+                                st.markdown(f"""
+                                <style>
+                                /* Reduce gap in the vertical block containing plan markers */
+                                div[data-testid="stVerticalBlock"]:has(span.plan-marker-lang),
+                                div[data-testid="stVerticalBlock"]:has(span.plan-marker-math),
+                                div[data-testid="stVerticalBlock"]:has(span.plan-marker-other) {{
+                                    gap: 0.25rem !important;
+                                }}
+
+                                /* Hide the marker containers so they don't take up space/gaps */
+                                div[data-testid="element-container"]:has(span.plan-marker-lang),
+                                div[data-testid="element-container"]:has(span.plan-marker-math),
+                                div[data-testid="element-container"]:has(span.plan-marker-other) {{
+                                    display: none !important;
+                                }}
+
+                                /* Language Style (Blue) */
+                                div[data-testid="stVerticalBlock"] > div:has(span.plan-marker-lang) + div button {{
+                                    background-color: #f0f9ff !important; /* sky-50 */
+                                    border: 1px solid #bae6fd !important; /* sky-200 */
+                                    border-left: 5px solid #0284c7 !important; /* sky-600 */
+                                    color: #0c4a6e !important; /* sky-900 */
+                                    border-radius: 6px !important;
+                                    padding: 0.25rem 0.5rem !important;
+                                    min-height: 3.5rem !important;
+                                    height: auto !important;
+                                    display: flex !important;
+                                    align-items: center !important;
+                                    justify-content: flex-start !important;
+                                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                                    transition: all 0.2s ease;
+                                    width: 94% !important;
+                                    margin: 0 auto !important;
+                                }}
+                                div[data-testid="stVerticalBlock"] > div:has(span.plan-marker-lang) + div button:hover {{
+                                    background-color: #e0f2fe !important; /* sky-100 */
+                                    transform: translateY(-1px);
+                                    box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+                                }}
+                                div[data-testid="stVerticalBlock"] > div:has(span.plan-marker-lang) + div button span[data-testid="stIconMaterial"] {{
+                                    color: #0284c7 !important; /* sky-600 */
+                                }}
+
+                                /* Non-Language Style (Orange) */
+                                div[data-testid="stVerticalBlock"] > div:has(span.plan-marker-math) + div button {{
+                                    background-color: #fff7ed !important; /* orange-50 */
+                                    border: 1px solid #fed7aa !important; /* orange-200 */
+                                    border-left: 5px solid #ea580c !important; /* orange-600 */
+                                    color: #7c2d12 !important; /* orange-900 */
+                                    border-radius: 6px !important;
+                                    padding: 0.25rem 0.5rem !important;
+                                    min-height: 3.5rem !important;
+                                    height: auto !important;
+                                    display: flex !important;
+                                    align-items: center !important;
+                                    justify-content: flex-start !important;
+                                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                                    transition: all 0.2s ease;
+                                    width: 94% !important;
+                                    margin: 0 auto !important;
+                                }}
+                                div[data-testid="stVerticalBlock"] > div:has(span.plan-marker-math) + div button:hover {{
+                                    background-color: #ffedd5 !important; /* orange-100 */
+                                    transform: translateY(-1px);
+                                    box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+                                }}
+                                div[data-testid="stVerticalBlock"] > div:has(span.plan-marker-math) + div button span[data-testid="stIconMaterial"] {{
+                                    color: #ea580c !important; /* orange-600 */
+                                }}
+
+                                /* Other Style (Gray) */
+                                div[data-testid="stVerticalBlock"] > div:has(span.plan-marker-other) + div button {{
+                                    background-color: #f9fafb !important;
+                                    border: 1px solid #e5e7eb !important;
+                                    border-left: 5px solid #9ca3af !important;
+                                    color: #4b5563 !important;
+                                    border-radius: 6px !important;
+                                    padding: 0.25rem 0.5rem !important;
+                                    min-height: 3.5rem !important;
+                                    height: auto !important;
+                                    display: flex !important;
+                                    align-items: center !important;
+                                    justify-content: flex-start !important;
+                                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                                    width: 94% !important;
+                                    margin: 0 auto !important;
+                                }}
+                                
+                                /* Text Wrapping Fix */
+                                div[data-testid="stVerticalBlock"] button p {{
+                                    white-space: normal !important;
+                                    overflow-wrap: break-word !important;
+                                    text-align: left !important;
+                                    line-height: 1.2 !important;
+                                    font-size: 0.8rem !important;
+                                    font-weight: 700 !important;
+                                    margin: 0 !important;
+                                    flex-grow: 1 !important;
+                                }}
+                                </style>
+                                """, unsafe_allow_html=True)
+                                
+                                for idx, unit in enumerate(units):
+                                    unit_name = unit['name']
+                                    unit_subj = unit.get('subject', '学習')
+                                    unit_type = unit.get('type', '')
+                                    
+                                    # マーカークラスの決定
+                                    if unit_subj in ["言語", "英語"]:
+                                        marker_class = "plan-marker-lang"
+                                    elif unit_subj in ["非言語", "構造的把握"]:
+                                        marker_class = "plan-marker-math"
+                                    else:
+                                        marker_class = "plan-marker-other"
+                                    
+                                    # カレンダー追加ポップオーバー（単元名をクリックして開く）
+                                    pop_key = f"cal_{date_str}_{idx}"
+                                    try:
+                                        # マーカーを注入 (非表示)
+                                        st.markdown(f'<span class="{marker_class}" style="display:none;"></span>', unsafe_allow_html=True)
+                                        
+                                        # ラベル: 単元名のみ
+                                        btn_label = f"{unit_name}"
+                                        
+                                        with st.popover(btn_label, icon=":material/event:", use_container_width=True, help=f"{unit_subj}: {t('add_to_google_calendar')}"):
+                                            st.markdown(f"**{unit_name}**")
+                                            st.caption(f"{t('subject')}: {unit_subj} | {t('type')}: {unit_type}")
+                                            
+                                            # デフォルト時間は適当に設定（例: 20:00）
+                                            sch_time = st.time_input(t("start_time"), value=datetime.strptime("20:00", "%H:%M").time(), key=f"time_{pop_key}")
+                                            sch_dur = st.number_input(t("study_duration_min"), value=20, step=10, key=f"dur_{pop_key}")
+                                            
+                                            if st.button(t("register"), key=f"btn_{pop_key}", type="primary"):
+                                                service, error = google_calendar_utils.get_calendar_service()
+                                                if error:
+                                                    st.error(error)
+                                                else:
+                                                    try:
+                                                        current_year = datetime.now().year
+                                                        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+                                                        
+                                                        start_dt = datetime.combine(date_obj, sch_time)
+                                                        end_dt = start_dt + timedelta(minutes=sch_dur)
+                                                        
+                                                        summary = f"📖 {t('study')}: {unit_name}"
+                                                        description = f"{t('study_unit')}: {unit_name}\n{t('type')}: {unit_type}"
+                                                        
+                                                        link, err = google_calendar_utils.add_event_to_calendar(service, summary, start_dt, end_dt, description)
+                                                        if link:
+                                                            st.success(t("registered_success"))
+                                                        elif err:
+                                                            st.error(f"{t('error')}: {err}")
+                                                    except Exception as e:
+                                                        st.error(f"{t('error')}: {e}")
+                                        
+                                    except Exception:
+                                        pass 
+                                
+                                st.caption(f"Total: {plan['time_minutes']}{t('minutes')}")
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+
             else:
-                st.info(t("cannot_display_data"))
+                st.info(t("set_exam_date_msg"))
+
+        def render_badges():
+            st.markdown("---")
+            sac.divider(label=t('acquired_badges'), icon='award', align='left')
+            
+            # バッジ定義
+            badge_definitions = [
+                {
+                    "name": t('beginner_badge'),
+                    "icon": "🥚",
+                    "desc": "10問以上解答",
+                    "condition": lambda df: len(df) >= 10
+                },
+                {
+                    "name": "継続の達人",
+                    "icon": "🔥",
+                    "desc": "3日以上連続学習",
+                    "condition": lambda df: streak >= 3 # streak is calculated globally
+                },
+                {
+                    "name": "推論マスター",
+                    "icon": "🏆",
+                    "desc": "推論の正答率80%以上",
+                    "condition": lambda df: not df[df["ジャンル"]=="推論"].empty and (df[df["ジャンル"]=="推論"]["正誤"]=="〇").mean() >= 0.8
+                }
+            ]
+            
+            cols = st.columns(len(badge_definitions))
+            for i, badge in enumerate(badge_definitions):
+                with cols[i]:
+                    is_unlocked = badge["condition"](df_all)
+                    opacity = 1.0 if is_unlocked else 0.3
+                    grayscale = 0 if is_unlocked else 100
+                    
+                    st.markdown(f"""
+                    <div style="text-align: center; opacity: {opacity}; filter: grayscale({grayscale}%); transition: all 0.3s;">
+                        <div style="font-size: 2.5rem; margin-bottom: 8px;">{badge['icon']}</div>
+                        <div style="font-weight: 700; font-size: 0.9rem; color: #1f2937; margin-bottom: 4px;">{badge['name']}</div>
+                        <div style="font-size: 0.75rem; color: #6b7280; line-height: 1.3;">{badge['desc']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        def render_study_stats():
+            # カレンダー下に統計情報を表示
+            col1, col2, col3 = st.columns(3)
+            
+            # 連続学習日数の計算
+            if not df_all.empty:
+                df_with_date = df_all.copy()
+                df_with_date["日付"] = pd.to_datetime(df_with_date["日付"]).dt.date
+                unique_dates = sorted(df_with_date["日付"].unique(), reverse=True)
+                
+                current_streak = 0
+                max_streak = 0
+                temp_streak = 0
+                
+                if unique_dates:
+                    # 現在の連続日数
+                    today = datetime.today().date()
+                    if unique_dates[0] == today or (len(unique_dates) > 1 and unique_dates[0] == today - timedelta(days=1)):
+                        current_date = unique_dates[0]
+                        current_streak = 1
+                        for i in range(1, len(unique_dates)):
+                            if unique_dates[i] == current_date - timedelta(days=1):
+                                current_streak += 1
+                                current_date = unique_dates[i]
+                            else:
+                                break
+                    
+                    # 最長連続日数
+                    for i in range(len(unique_dates)):
+                        if i == 0:
+                            temp_streak = 1
+                        elif unique_dates[i-1] - unique_dates[i] == timedelta(days=1):
+                            temp_streak += 1
+                        else:
+                            max_streak = max(max_streak, temp_streak)
+                            temp_streak = 1
+                    max_streak = max(max_streak, temp_streak)
+                
+                # 今月の統計
+                today = datetime.today()
+                this_month_data = df_with_date[
+                    (pd.to_datetime(df_with_date["日付"]).dt.month == today.month) &
+                    (pd.to_datetime(df_with_date["日付"]).dt.year == today.year)
+                ]
+                study_days_this_month = len(this_month_data["日付"].unique())
+            else:
+                current_streak = 0
+                max_streak = 0
+                study_days_this_month = 0
+            
+            # 統計情報をカスタムスタイルで表示
+            st.markdown("""
+            <style>
+            .calendar-stat {
+                text-align: center;
+                padding: 12px;
+                background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+                border-radius: 8px;
+                border: 1px solid #e5e7eb;
+            }
+            .calendar-stat-icon {
+                font-size: 1.5rem;
+                color: #667eea;
+                margin-bottom: 4px;
+            }
+            .calendar-stat-value {
+                font-size: 1.8rem;
+                font-weight: 800;
+                color: #1f2937;
+                margin: 4px 0;
+            }
+            .calendar-stat-label {
+                font-size: 0.8rem;
+                color: #6b7280;
+                font-weight: 600;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            col1_html = f"""
+            <div class="calendar-stat">
+                <i class="bi bi-fire calendar-stat-icon"></i>
+                <div class="calendar-stat-value">{current_streak}{t('days_unit')}</div>
+                <div class="calendar-stat-label">{t('current_streak_study')}</div>
+            </div>
+            """
+            
+            col2_html = f"""
+            <div class="calendar-stat">
+                <i class="bi bi-calendar-check calendar-stat-icon"></i>
+                <div class="calendar-stat-value">{study_days_this_month}{t('days_unit')}</div>
+                <div class="calendar-stat-label">{t('study_days_this_month')}</div>
+            </div>
+            """
+            
+            col3_html = f"""
+            <div class="calendar-stat">
+                <i class="bi bi-trophy calendar-stat-icon"></i>
+                <div class="calendar-stat-value">{max_streak}{t('days_unit')}</div>
+                <div class="calendar-stat-label">{t('longest_streak_record')}</div>
+            </div>
+            """
+            
+            with col1:
+                st.markdown(col1_html, unsafe_allow_html=True)
+            with col2:
+                st.markdown(col2_html, unsafe_allow_html=True)
+            with col3:
+                st.markdown(col3_html, unsafe_allow_html=True)
+
+        def render_detailed_graphs():
+            st.markdown("---")
+            st.markdown(f"<div class='chart-header'><i class='bi bi-bar-chart-line-fill icon-badge'></i>{t('widget_detailed_graphs')}</div>", unsafe_allow_html=True)
+            
+            if df_all.empty:
+                st.info(t("no_data_msg"))
+                return
+
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # 1. Subject-wise Proficiency Radar Chart
+                st.markdown(f"<div style='margin-bottom:10px; font-weight:bold;'><i class='bi bi-pentagon-half' style='color:#3b82f6;'></i> {t('graph_radar_title')}</div>", unsafe_allow_html=True)
+                
+                # Calculate accuracy per subject
+                df_subj = df_all.copy()
+                df_subj["is_correct"] = df_subj["正誤"].apply(lambda x: 1 if x == "〇" else 0)
+                subj_acc = df_subj.groupby("科目")["is_correct"].mean().reset_index()
+                
+                if not subj_acc.empty:
+                    categories = subj_acc["科目"].tolist()
+                    values = (subj_acc["is_correct"] * 100).tolist()
+                    
+                    # Close the loop for radar chart
+                    categories.append(categories[0])
+                    values.append(values[0])
+                    
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatterpolar(
+                        r=values,
+                        theta=categories,
+                        fill='toself',
+                        fillcolor='rgba(59, 130, 246, 0.2)',
+                        name=t("accuracy_rate"),
+                        line=dict(color='#3b82f6', width=3),
+                        marker=dict(size=8, color='#3b82f6')
+                    ))
+                    
+                    fig.update_layout(
+                        polar=dict(
+                            radialaxis=dict(
+                                visible=True,
+                                range=[0, 100],
+                                tickfont=dict(size=10),
+                                gridcolor='rgba(0,0,0,0.1)'
+                            ),
+                            angularaxis=dict(
+                                tickfont=dict(size=12, weight="bold")
+                            )
+                        ),
+                        showlegend=False,
+                        margin=dict(l=40, r=40, t=20, b=20),
+                        height=300,
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info(t("no_data_msg"))
+
+            with col2:
+                # 2. Learning Balance Donut Chart
+                st.markdown(f"<div style='margin-bottom:10px; font-weight:bold;'><i class='bi bi-pie-chart-fill' style='color:#8b5cf6;'></i> {t('graph_donut_title')}</div>", unsafe_allow_html=True)
+                
+                # Count problems per subject
+                subj_counts = df_all["科目"].value_counts().reset_index()
+                subj_counts.columns = ["科目", "count"]
+                total_count = subj_counts["count"].sum()
+                
+                if not subj_counts.empty:
+                    fig2 = px.pie(
+                        subj_counts, 
+                        values='count', 
+                        names='科目', 
+                        hole=0.5,
+                        color_discrete_sequence=px.colors.qualitative.Set2
+                    )
+                    fig2.update_traces(
+                        textposition='inside', 
+                        textinfo='percent+label',
+                        marker=dict(line=dict(color='#FFFFFF', width=2))
+                    )
+                    fig2.update_layout(
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5),
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        height=300,
+                        annotations=[dict(text=f"{total_count}<br>Questions", x=0.5, y=0.5, font_size=20, showarrow=False)]
+                    )
+                    st.plotly_chart(fig2, use_container_width=True)
+                else:
+                    st.info(t("no_data_msg"))
+
+        # マッピングの再定義（全関数定義後）
+        widgets_map = {
+            "主要指標": render_metrics,
+            "学習カレンダー": render_calendar,
+            "週間学習プラン": render_weekly_plan,
+            "バッジ": render_badges,
+            "学習記録": render_study_stats
+        }
+
+        # 設定された順序でループ実行
+        active_widgets = st.session_state.get("dashboard_widgets_v2", ["主要指標", "学習カレンダー", "学習記録", "週間学習プラン"])
+             
+        for widget_name in active_widgets:
+            if widget_name in widgets_map:
+                widgets_map[widget_name]()
+            else:
+                # Handle renamed or removed widgets gracefully
+                pass
 
         # ===== 学習ロードマップ =====
         st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
@@ -3020,26 +3582,51 @@ if tab_selection == t("tab_dashboard"):
                     status = roadmap_data["status"][idx]
                     
                     # ステータスに応じた色とアイコン（日本語で判定）
-                    if status == "完了":
+                    if status == t("status_completed"):
                         status_color = "#10B981"
                         status_icon = '<i class="bi bi-check-circle-fill" style="color:#10B981;"></i>'
                         status_text_color = "#10B981"
                         display_status = t("completed")
-                    elif status == "進行中":
+                    elif status == t("status_in_progress"):
                         status_color = "#F59E0B"
                         status_icon = '<i class="bi bi-arrow-repeat" style="color:#F59E0B;"></i>'
                         status_text_color = "#F59E0B"
                         display_status = t("in_progress")
+                        display_status = t("in_progress")
                     else:
-                        status_color = "#9CA3AF"
-                        status_icon = '<i class="bi bi-pause-circle" style="color:#9CA3AF;"></i>'
-                        status_text_color = "#9CA3AF"
+                        status_color = "#6B7280" # Darker gray for better contrast
+                        status_icon = '<i class="bi bi-pause-circle" style="color:#6B7280;"></i>'
+                        status_text_color = "#6B7280"
                         display_status = t("not_started")
                     
-                    units_list = "<br>".join([f"・{u}" for u in roadmap_data["units"][idx]])
+                        display_status = t("not_started")
+                    
+                    units_list = "<br>".join([f"・{dt(u)}" for u in roadmap_data["units"][idx]])
+                    
+                    # フェーズ名の表示用翻訳
                     
                     # フェーズ名の表示用翻訳
                     display_phase_title = phase_map.get(phase_key, phase_key)
+                    
+                    # Arrow for flow visualization (except last item)
+                    arrow_html = ""
+                    if idx < 2:
+                        arrow_html = f"""
+                        <div style="
+                            position: absolute;
+                            top: 50%;
+                            right: -25px;
+                            transform: translateY(-50%);
+                            z-index: 10;
+                            color: #cbd5e1;
+                            font-size: 1.5rem;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        ">
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                        """
                     
                     st.markdown(f"""
                     <style>
@@ -3050,43 +3637,58 @@ if tab_selection == t("tab_dashboard"):
                         border-radius: 12px;
                         padding: 16px;
                         text-align: center;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
                         height: 100%;
                         cursor: help;
-                        transition: transform 0.2s;
+                        transition: all 0.2s ease;
                     }}
                     .roadmap-card:hover {{
-                        transform: translateY(-2px);
+                        transform: translateY(-4px);
+                        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                    }}
+                    .step-badge {{
+                        position: absolute;
+                        top: -10px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: {status_color};
+                        color: white;
+                        font-size: 0.75rem;
+                        font-weight: 700;
+                        padding: 2px 10px;
+                        border-radius: 999px;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                     }}
                     .roadmap-tooltip {{
                         visibility: hidden;
                         width: 220px;
-                        background-color: #333;
+                        background-color: #1e293b;
                         color: #fff;
                         text-align: left;
-                        border-radius: 6px;
-                        padding: 10px;
+                        border-radius: 8px;
+                        padding: 12px;
                         position: absolute;
-                        z-index: 1;
-                        bottom: 110%;
+                        z-index: 20;
+                        bottom: 115%;
                         left: 50%;
                         transform: translateX(-50%);
                         opacity: 0;
-                        transition: opacity 0.3s;
+                        transition: opacity 0.2s;
                         font-size: 0.8rem;
-                        line-height: 1.4;
+                        line-height: 1.5;
                         pointer-events: none;
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+                        border: 1px solid rgba(255,255,255,0.1);
                     }}
                     .roadmap-tooltip::after {{
                         content: "";
                         position: absolute;
                         top: 100%;
                         left: 50%;
-                        margin-left: -5px;
-                        border-width: 5px;
+                        margin-left: -6px;
+                        border-width: 6px;
                         border-style: solid;
-                        border-color: #333 transparent transparent transparent;
+                        border-color: #1e293b transparent transparent transparent;
                     }}
                     .roadmap-card:hover .roadmap-tooltip {{
                         visibility: visible;
@@ -3094,36 +3696,41 @@ if tab_selection == t("tab_dashboard"):
                     }}
                     </style>
                     
-                    <div class="roadmap-card">
-                        <div class="roadmap-tooltip">
-                            <strong>{t('main_units')}</strong><br>
-                            {units_list}
-                        </div>
-                        <div style="font-size: 1.5rem; margin-bottom: 8px;">{status_icon}</div>
-                        <div style="font-weight: 700; font-size: 1rem; color: #1f2937; margin-bottom: 8px;">
-                            {display_phase_title}
-                        </div>
-                        <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
-                            {t('coverage')}: {progress:.0f}%
-                        </div>
-                        <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 8px;">
-                            {t('accuracy_rate')}: {accuracy:.0f}%
-                        </div>
-                        <div style="
-                            background: #e5e7eb;
-                            border-radius: 999px;
-                            height: 6px;
-                            overflow: hidden;
-                            margin-top: 12px;
-                        ">
+                    <div style="position: relative; height: 100%;">
+                        <div class="roadmap-card">
+                            <div class="step-badge">STEP {idx + 1}</div>
+                            <div class="roadmap-tooltip">
+                                <strong style="color: #e2e8f0; display: block; margin-bottom: 4px;">{t('main_units')}</strong>
+                                {units_list}
+                            </div>
+                            <div style="font-size: 2rem; margin-bottom: 12px; margin-top: 8px;">{status_icon}</div>
+                            <div style="font-weight: 800; font-size: 1.1rem; color: #111827; margin-bottom: 8px;">
+                                {display_phase_title}
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #334155; margin-bottom: 4px;">
+                                <span>{t('coverage')}</span>
+                                <span style="font-weight: 700; color: #0f172a;">{progress:.0f}%</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
+                                <span>{t('accuracy_rate')}</span>
+                                <span style="font-weight: 700; color: #0f172a;">{accuracy:.0f}%</span>
+                            </div>
                             <div style="
-                                background: {status_color};
-                                height: 100%;
-                                width: {progress}%;
+                                background: #f1f5f9;
                                 border-radius: 999px;
-                                transition: width 0.3s ease;
-                            "></div>
+                                height: 8px;
+                                overflow: hidden;
+                            ">
+                                <div style="
+                                    background: {status_color};
+                                    height: 100%;
+                                    width: {accuracy}%;
+                                    border-radius: 999px;
+                                    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+                                "></div>
+                            </div>
                         </div>
+                        {arrow_html}
                     </div>
                     """, unsafe_allow_html=True)
             
@@ -3147,180 +3754,8 @@ if tab_selection == t("tab_dashboard"):
         else:
             st.info(t("roadmap_no_data"))
 
-        # ===== 週間学習プラン =====
-        if st.session_state.exam_date:
-            weekly_plan = generate_weekly_study_plan(
-                df_all, 
-                st.session_state.exam_date, 
-                tgt_r, 
-                cor_r
-            )
-            
-            # DEBUG: 原因調査用
-            # st.write(f"DEBUG: Exam Date: {st.session_state.exam_date}")
-            # st.write(f"DEBUG: DF All Empty: {df_all.empty}")
-            # if not df_all.empty:
-            #    st.write(f"DEBUG: DF All Len: {len(df_all)}")
-            # st.write(f"DEBUG: Plan Result: {weekly_plan}")
-            
-            if weekly_plan:
-                sac.divider(label=t('weekly_study_plan'), icon='calendar-week', align='center')
-                
-                # CSSでチェックボックスの余白を詰める & Expanderのスタイル調整
-                st.markdown("""
-                <style>
-                .compact-checkbox {
-                    margin-bottom: -10px !important;
-                }
-                .compact-checkbox label {
-                    font-size: 0.8rem !important;
-                    padding-top: 0px !important;
-                    padding-bottom: 0px !important;
-                    min-height: 0px !important;
-                }
-                div[data-testid="stExpander"] {
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-                    border: 1px solid #e5e7eb;
-                }
-                div[data-testid="stExpander"] details summary {
-                    padding-top: 8px !important;
-                    padding-bottom: 8px !important;
-                }
-                </style>
-                """, unsafe_allow_html=True)
-                
-                # 今日の日付文字列を取得（比較用）
-                today_str = datetime.today().strftime("%m/%d (%a)")
-                
-                # ページネーション設定
-                DAYS_PER_PAGE = 3
-                if "plan_page_idx" not in st.session_state:
-                    st.session_state.plan_page_idx = 0
-                
-                plan_items = list(weekly_plan.items())
-                total_days = len(plan_items)
-                
-                # インデックス範囲の調整 (ボタン処理前)
-                start_idx = st.session_state.plan_page_idx * DAYS_PER_PAGE
-                if start_idx >= total_days:
-                    st.session_state.plan_page_idx = 0
-                    start_idx = 0
-                end_idx = min(start_idx + DAYS_PER_PAGE, total_days)
 
-                # ナビゲーションボタン (上部)
-                col_prev, col_info, col_next = st.columns([1, 2, 1])
-                with col_prev:
-                    if st.session_state.plan_page_idx > 0:
-                        if st.button(t("prev_schedule"), key="plan_prev"):
-                            st.session_state.plan_page_idx -= 1
-                            # 再計算
-                            start_idx = st.session_state.plan_page_idx * DAYS_PER_PAGE
-                            end_idx = min(start_idx + DAYS_PER_PAGE, total_days)
-                
-                with col_next:
-                    if end_idx < total_days:
-                        if st.button(t("next_schedule"), key="plan_next"):
-                            st.session_state.plan_page_idx += 1
-                            # 再計算
-                            start_idx = st.session_state.plan_page_idx * DAYS_PER_PAGE
-                            end_idx = min(start_idx + DAYS_PER_PAGE, total_days)
-                
-                # 表示用アイテム更新
-                current_items = plan_items[start_idx:end_idx]
-                
-                # 表示
-                if current_items:
-                    plan_cols = st.columns(len(current_items))
-                    for idx, (day_str, plan_data) in enumerate(current_items):
-                        with plan_cols[idx]:
-                                # 今日かどうかでExpanderの開閉を制御
-                                is_today = (day_str == today_str)
-                                
-                                # Expanderのラベルを作成
-                                label = f"**{day_str}**"
-                                
-                                with st.expander(label, expanded=is_today):
-                                    st.markdown(f"""
-                                    <div style="text-align:center; font-size:0.75rem; color:#6B7280; margin-bottom:8px; font-weight:600;">
-                                        <i class="bi bi-clock"></i> {plan_data['time_minutes']}{t('minutes_unit')}
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    
 
-                                    # チェックボックス
-                                    for unit_info in plan_data['units']:
-                                        unit_name = unit_info["name"]
-                                        unit_type = unit_info["type"]
-                                        
-                                        # ユニークキー: 日付_単元
-                                        chk_key = f"plan_{day_str}_{unit_name}"
-                                        
-                                        # レイアウト: チェックボックス + カレンダー追加ボタン
-                                        c_chk, c_btn = st.columns([1, 0.25])
-                                        
-                                        # 初期値
-                                        is_done = st.session_state.plan_completion.get(chk_key, False)
-                                        
-                                        # ラベル装飾
-                                        label_text = f"~~{unit_name}~~" if is_done else f"{unit_name}"
-                                        
-                                        with c_chk:
-                                            # CSSクラス適用のためのコンテナ
-                                            st.markdown('<div class="compact-checkbox">', unsafe_allow_html=True)
-                                            
-                                            def toggle_plan_status(k):
-                                                st.session_state.plan_completion[k] = st.session_state[k]
-
-                                            st.checkbox(
-                                                f"{unit_type} {label_text}", 
-                                                value=is_done, 
-                                                key=chk_key,
-                                                on_change=toggle_plan_status,
-                                                args=(chk_key,)
-                                            )
-                                            
-                                            st.markdown('</div>', unsafe_allow_html=True)
-                                        
-                                        with c_btn:
-                                            # カレンダー追加ポップオーバー
-                                            try:
-                                                with st.popover("", icon=":material/calendar_month:", help=t("add_to_google_calendar")):
-                                                    st.markdown(f"**{unit_name}** {t('add_to_calendar')}")
-                                                    sch_time = st.time_input(t("start_time"), value=datetime.strptime("20:00", "%H:%M").time(), key=f"time_{chk_key}")
-                                                    sch_dur = st.number_input(t("study_duration_min"), value=30, step=10, key=f"dur_{chk_key}")
-                                                    
-                                                    if st.button(t("register"), key=f"btn_{chk_key}", type="primary"):
-                                                        service, error = google_calendar_utils.get_calendar_service()
-                                                        if error:
-                                                            st.error(error)
-                                                        else:
-                                                            try:
-                                                                current_year = datetime.now().year
-                                                                month_day = day_str.split(' ')[0]
-                                                                date_str = f"{current_year}/{month_day}"
-                                                                date_obj = datetime.strptime(date_str, "%Y/%m/%d").date()
-                                                                if date_obj < datetime.now().date() - timedelta(days=300):
-                                                                    date_obj = date_obj.replace(year=current_year + 1)
-                                                                
-                                                                start_dt = datetime.combine(date_obj, sch_time)
-                                                                end_dt = start_dt + timedelta(minutes=sch_dur)
-                                                                
-                                                                summary = f"📖 {t('study')}: {unit_name}"
-                                                                description = f"{t('study_unit')}: {unit_name}\n{t('type')}: {unit_type}"
-                                                                
-                                                                link, err = google_calendar_utils.add_event_to_calendar(service, summary, start_dt, end_dt, description)
-                                                                if link:
-                                                                    st.success(t("registered_success"))
-                                                                elif err:
-                                                                    st.error(f"{t('error')}: {err}")
-                                                            except Exception as e:
-                                                                st.error(f"{t('error')}: {e}")
-                                            except AttributeError:
-                                                # st.popoverが使えない古いバージョンの場合（フォールバック）
-                                                st.caption("📅")
-                                        
 
 
 
@@ -3335,7 +3770,7 @@ if tab_selection == t("tab_dashboard"):
         # ===== グラフ =====
         sac.divider(label=t('analysis_graphs'), icon='graph-up', align='center')
         
-        m1, m2 = st.columns([2, 1])
+        m1, m2 = st.columns(2)
 
         with m1:
             st.markdown(f'<div class="chart-header"><i class="bi bi-graph-up icon-badge"></i>{t("daily_accuracy_trend")}</div>', unsafe_allow_html=True)
@@ -3345,9 +3780,13 @@ if tab_selection == t("tab_dashboard"):
             fig.add_trace(go.Scatter(
                 x=bd["日_label"],
                 y=(bd["正答率"] * 100),
-                mode='lines+markers',
-                line=dict(color=PRIMARY, width=3),
-                marker=dict(size=10, color=PRIMARY, line=dict(color='white', width=2)),
+                mode='lines+markers+text',
+                text=(bd["正答率"] * 100).round(0).astype(int).astype(str) + '%',
+                textposition="top center",
+                line=dict(color=PRIMARY, width=3, shape='spline'),
+                fill='tozeroy',
+                fillcolor='rgba(59, 130, 246, 0.1)',
+                marker=dict(size=8, color=PRIMARY, line=dict(color='white', width=2)),
                 name=t("accuracy_rate"),
                 hovertemplate=f'<b>%{{x}}</b><br>{t("accuracy_rate")}：%{{y:.0f}}%<extra></extra>'
             ))
@@ -3363,9 +3802,10 @@ if tab_selection == t("tab_dashboard"):
                 template='simple_white',
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=40, r=20, t=30, b=60),
+                height=300,
+                margin=dict(l=40, r=20, t=30, b=40),
                 xaxis=dict(showgrid=True, gridcolor='#E6EEF8', tickfont=dict(color='#374151'), zeroline=False),
-                yaxis=dict(range=[0, 100], tickmode='array', tickvals=[0, 25, 50, 75, 100],
+                yaxis=dict(range=[0, 110], tickmode='array', tickvals=[0, 25, 50, 75, 100],
                            showgrid=True, gridcolor='#E6EEF8', gridwidth=1, zeroline=False),
                 hovermode='x unified',
                 showlegend=False
@@ -3379,17 +3819,17 @@ if tab_selection == t("tab_dashboard"):
             dash = (currentRate_pct / 100.0) * circumference
             remaining = circumference - dash
             svg = f"""
-            <div class="metric-card" style="display:flex; align-items:center; justify-content:center;">
+            <div class="metric-card" style="display:flex; align-items:center; justify-content:center; height:300px;">
               <div class="flex flex-col items-center">
-                <div class="relative" style="width:128px; height:128px;">
+                <div class="relative" style="width:160px; height:160px;">
                   <svg viewBox="0 0 100 100" style="transform: rotate(-90deg);">
                     <circle cx="50" cy="50" r="45" fill="none" stroke="var(--border)" stroke-width="8" />
                     <circle cx="50" cy="50" r="45" fill="none" stroke="{SUCCESS if cor_r >= tgt_r else DANGER}" stroke-width="8"
                             stroke-dasharray="{dash:.2f} {remaining:.2f}" stroke-linecap="round" />
                   </svg>
                   <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-                    <span style="font-size:1.5rem; font-weight:800; color:var(--card-foreground);">{currentRate_pct}%</span>
-                    <span style="font-size:0.75rem; color:var(--muted-foreground);">/ {targetRate_pct}%</span>
+                    <span style="font-size:2rem; font-weight:800; color:var(--card-foreground);">{currentRate_pct}%</span>
+                    <span style="font-size:1rem; color:var(--muted-foreground);">/ {targetRate_pct}%</span>
                   </div>
                 </div>
               </div>
@@ -3413,7 +3853,7 @@ if tab_selection == t("tab_dashboard"):
                     y=t5["単元_label"],
                     x=[x_max] * len(t5),
                     orientation='h',
-                    marker=dict(color='rgba(234,239,243,0.95)'),
+                    marker=dict(color='rgba(234,239,243,0.5)'),
                     hoverinfo='none',
                     showlegend=False
                 ))
@@ -3422,6 +3862,8 @@ if tab_selection == t("tab_dashboard"):
                     x=t5["優先度"],
                     orientation='h',
                     marker=dict(color=PRIMARY, line=dict(color='rgba(0,0,0,0.06)', width=0)),
+                    text=t5["優先度"].apply(lambda x: f"{x:.1f}"),
+                    textposition='auto',
                     hovertemplate=f'%{{y}}<br>{t("priority")}：%{{x:.2f}}<extra></extra>',
                     name=t('priority')
                 ))
@@ -3430,8 +3872,8 @@ if tab_selection == t("tab_dashboard"):
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
                     barmode='overlay',
-                    height=360,
-                    margin=dict(l=140, r=20, t=10, b=20),
+                    height=300,
+                    margin=dict(l=100, r=20, t=10, b=20),
                     showlegend=False,
                     xaxis=dict(showgrid=True, gridcolor='rgba(14,30,37,0.06)', range=[0, x_max], zeroline=False),
                     yaxis=dict(autorange='reversed', tickfont=dict(size=14, color='#374151'), dtick=1)
@@ -3444,6 +3886,8 @@ if tab_selection == t("tab_dashboard"):
             fig = go.Figure(go.Bar(
                 x=cau[t("cause")],
                 y=cau[t("count")],
+                text=cau[t("count")],
+                textposition='auto',
                 marker=dict(color=ACCENT, line=dict(color='rgba(0,0,0,0.06)', width=1)),
                 hovertemplate=f'%{{x}}<br>{t("count")}：%{{y}}<extra></extra>'
             ))
@@ -3452,12 +3896,12 @@ if tab_selection == t("tab_dashboard"):
                 template='simple_white',
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                height=360,
+                height=300,
                 margin=dict(l=20, r=20, t=10, b=40),
                 showlegend=False,
                 xaxis=dict(showgrid=False, tickfont=dict(size=12, color='#374151')),
                 yaxis=dict(showgrid=True, gridcolor='rgba(14,30,37,0.06)', zeroline=False,
-                           tickmode='auto', range=[0, max_y * 1.12], tickfont=dict(size=12, color='#6B7280'))
+                           tickmode='auto', range=[0, max_y * 1.15], tickfont=dict(size=12, color='#6B7280'))
             )
             fig.update_traces(marker_line_width=0)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -3489,7 +3933,7 @@ if tab_selection == t("tab_dashboard"):
                         sac.alert(t("goal_achievement_likely"), icon='check-circle', color='success', size='sm')
                     else:
                         gap = tgt_r - predicted_rate
-                        sac.alert(f"⚠️ {t('goal_shortage').format(gap=gap):.1%}", icon='exclamation-circle', color='warning', size='sm')
+                        sac.alert(f"⚠️ {t('goal_shortage').format(gap=gap)}", icon='exclamation-circle', color='warning', size='sm')
                 
                 with col_p2:
                     # 予測グラフ（実績 + 予測）
@@ -3618,22 +4062,32 @@ if tab_selection == t("tab_dashboard"):
                 color="科目",
                 hover_name="単元",
                 color_discrete_sequence=[PRIMARY, ACCENT, SUCCESS],
-                opacity=0.85
+                opacity=0.9
             )
             
+            # 象限の背景色（Shapes）
+            # 1. 左上 (Ideal): Fast & High Acc
+            fig_scatter.add_shape(type="rect", x0=0, y0=avg_acc, x1=avg_time, y1=1.1, fillcolor="rgba(16, 185, 129, 0.1)", layer="below", line_width=0)
+            # 2. 右上 (Review): Slow & High Acc
+            fig_scatter.add_shape(type="rect", x0=avg_time, y0=avg_acc, x1=max_time*1.2, y1=1.1, fillcolor="rgba(245, 158, 11, 0.1)", layer="below", line_width=0)
+            # 3. 左下 (Careless): Fast & Low Acc
+            fig_scatter.add_shape(type="rect", x0=0, y0=-0.1, x1=avg_time, y1=avg_acc, fillcolor="rgba(249, 115, 22, 0.1)", layer="below", line_width=0)
+            # 4. 右下 (Needs Review): Slow & Low Acc
+            fig_scatter.add_shape(type="rect", x0=avg_time, y0=-0.1, x1=max_time*1.2, y1=avg_acc, fillcolor="rgba(239, 68, 68, 0.1)", layer="below", line_width=0)
+
             # 境界線
-            fig_scatter.add_hline(y=avg_acc, line_dash="dash", line_color="#9ca3af")
-            fig_scatter.add_vline(x=avg_time, line_dash="dash", line_color="#9ca3af")
+            fig_scatter.add_hline(y=avg_acc, line_dash="dash", line_color="#6b7280", opacity=0.5)
+            fig_scatter.add_vline(x=avg_time, line_dash="dash", line_color="#6b7280", opacity=0.5)
             
             # 象限ラベル（アノテーション）
             # 左上 (速い・高い): 理想
-            fig_scatter.add_annotation(x=avg_time*0.5, y=min(1.0, avg_acc + 0.1), text=t("ideal"), showarrow=False, font=dict(color=SUCCESS, size=11, weight="bold"))
+            fig_scatter.add_annotation(x=avg_time*0.5, y=min(1.0, avg_acc + 0.05), text=t("ideal"), showarrow=False, font=dict(color=SUCCESS, size=12, weight="bold"))
             # 右上 (遅い・高い): 慎重/要反復
-            fig_scatter.add_annotation(x=avg_time + (max_time-avg_time)*0.5, y=min(1.0, avg_acc + 0.1), text=t("needs_repetition"), showarrow=False, font=dict(color=WARNING, size=11, weight="bold"))
+            fig_scatter.add_annotation(x=avg_time + (max_time-avg_time)*0.5, y=min(1.0, avg_acc + 0.05), text=t("needs_repetition"), showarrow=False, font=dict(color=WARNING, size=12, weight="bold"))
             # 左下 (速い・低い): ケアレスミス
-            fig_scatter.add_annotation(x=avg_time*0.5, y=max(0.0, avg_acc - 0.1), text=t("careless_mistake"), showarrow=False, font=dict(color=ACCENT, size=11, weight="bold"))
+            fig_scatter.add_annotation(x=avg_time*0.5, y=max(0.0, avg_acc - 0.05), text=t("careless_mistake"), showarrow=False, font=dict(color=ACCENT, size=12, weight="bold"))
             # 右下 (遅い・低い): 基礎不足
-            fig_scatter.add_annotation(x=avg_time + (max_time-avg_time)*0.5, y=max(0.0, avg_acc - 0.1), text=t("needs_review"), showarrow=False, font=dict(color=DANGER, size=11, weight="bold"))
+            fig_scatter.add_annotation(x=avg_time + (max_time-avg_time)*0.5, y=max(0.0, avg_acc - 0.05), text=t("needs_review"), showarrow=False, font=dict(color=DANGER, size=12, weight="bold"))
             
             fig_scatter.update_traces(marker=dict(line=dict(width=1, color='white')))
             fig_scatter.update_layout(
@@ -3641,12 +4095,15 @@ if tab_selection == t("tab_dashboard"):
                 height=320, 
                 margin=dict(l=0,r=0,t=30,b=0), 
                 yaxis=dict(range=[-0.05, 1.05], tickformat=".0%", title=t("accuracy_rate")),
-                xaxis=dict(title=t("avg_answer_time_sec")),
+                xaxis=dict(title=t("avg_answer_time_sec"), range=[0, max_time*1.1]),
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
             st.plotly_chart(fig_scatter, use_container_width=True)
+
+        # ===== 詳細分析グラフ（科目別習熟度・学習バランス） =====
+        render_detailed_graphs()
         
         # ===== 科目別達成状況 =====
         sac.divider(label=t('subject_achievement_status'), icon='stack', align='center')
@@ -3707,49 +4164,66 @@ if tab_selection == t("tab_dashboard"):
                     
                     # Add search link
                     units["link"] = units["単元"].apply(lambda x: f"https://www.youtube.com/results?search_query={urllib.parse.quote('SPI ' + x)}")
+                    units["google_link"] = units["単元"].apply(lambda x: f"https://www.google.com/search?q={urllib.parse.quote('SPI ' + x + t('search_suffix'))}")
                     
                     # Select raw columns and rename for display
-                    st.dataframe(
-                        units[["単元", "正答率", "count", "link"]].rename(
-                            columns={
-                                "単元": t("unit"), 
-                                "正答率": t("accuracy_rate"), 
-                                "count": t("attempts"),
-                                "link": t("resources")
-                            }
-                        ),
-                        column_config={
-                            t("resources"): st.column_config.LinkColumn(
-                                t("resources"),
-                                display_text=t("watch_video")
-                            ),
-                            t("accuracy_rate"): st.column_config.ProgressColumn(
-                                t("accuracy_rate"),
-                                format="%.0f%%",
-                                min_value=0,
-                                max_value=1
-                            )
-                        },
-                        use_container_width=True,
-                        hide_index=True
-                    )
+                    # HTML Table Generation for Unit Accuracy
+                    table_html = f"""
+<div style="overflow-x: auto;">
+<table style="width:100%; border-collapse: collapse; font-size:0.9rem;">
+<thead>
+<tr style="border-bottom:2px solid #e5e7eb; color:#6b7280; font-size:0.85rem;">
+<th style="padding:12px 8px; text-align:left;">{t("unit")}</th>
+<th style="padding:12px 8px; text-align:left; width:40%;">{t("accuracy_rate")}</th>
+<th style="padding:12px 8px; text-align:center;">{t("attempts")}</th>
+<th style="padding:12px 8px; text-align:center;">{t("resources")}</th>
+</tr>
+</thead>
+<tbody>
+"""
+                    
+                    for _, row in units.iterrows():
+                        unit_name = row["単元"]
+                        acc = row["正答率"]
+                        attempts = row["count"]
+                        link = row["link"]
+                        google_link = row["google_link"]
+                        
+                        # Accuracy Bar Color
+                        if acc >= 0.8: bar_color = "#10b981" # Success
+                        elif acc >= 0.6: bar_color = "#3b82f6" # Primary
+                        else: bar_color = "#ef4444" # Danger
+                        
+                        acc_pct = acc * 100
+                        
+                        table_html += f"""
+<tr style="border-bottom:1px solid #f3f4f6;">
+<td style="padding:12px 8px; font-weight:600; color:#1f2937;">{unit_name}</td>
+<td style="padding:12px 8px;">
+<div style="display:flex; align-items:center; gap:12px;">
+<div style="flex-grow:1; background:#f3f4f6; height:8px; border-radius:4px; overflow:hidden;">
+<div style="width:{acc_pct}%; background:{bar_color}; height:100%;"></div>
+</div>
+<span style="font-weight:700; color:#374151; min-width:40px; text-align:right;">{acc_pct:.0f}%</span>
+</div>
+</td>
+<td style="padding:12px 8px; text-align:center; color:#4b5563; font-weight:500;">{attempts}</td>
+<td style="padding:12px 8px; text-align:center;">
+<a href="{link}" target="_blank" style="text-decoration:none; color:#ef4444; font-size:1.3rem; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
+<i class="bi bi-youtube"></i>
+</a>
+<a href="{google_link}" target="_blank" style="text-decoration:none; color:#3b82f6; font-size:1.2rem; margin-left:12px; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
+<i class="bi bi-google"></i>
+</a>
+</td>
+</tr>
+"""
+                    
+                    table_html += "</tbody></table></div>"
+                    st.markdown(table_html, unsafe_allow_html=True)
 
-                    fig_units = go.Figure(go.Bar(
-                        x=units["正答率"],
-                        y=units["単元"],
-                        orientation="h",
-                        marker=dict(color=PRIMARY, line=dict(color='rgba(0,0,0,0.06)', width=1))
-                    ))
-                    fig_units.update_layout(
-                        template="simple_white",
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        height=max(200, 40 * len(units)),
-                        margin=dict(l=0, r=10, t=10, b=10),
-                        xaxis=dict(tickformat=".0%", range=[0, 1], showgrid=True, gridcolor="#E6EEF8"),
-                        yaxis=dict(tickfont=dict(size=13, color="#111827"))
-                    )
-                    st.plotly_chart(fig_units, use_container_width=True, config={"displayModeBar": False})
+                    # Close button
+                    st.markdown("<div style='margin-top:16px;'></div>", unsafe_allow_html=True)
                     if st.button(t("close"), key=f"close_subj_{sel}"):
                         st.session_state.selected_subject = None
                         trigger_rerun()
@@ -3777,40 +4251,60 @@ if tab_selection == t("tab_data_list"):
             st.button(t("unit_summary_none"), disabled=True, use_container_width=True)
     
     with st.expander(t("entered_data_list"), expanded=True):
-        if not st.session_state.df_log_manual.empty:
-            # --- 新機能: データエディタで直接編集 ---
-            sac.alert(t("edit_cell_instruction"), icon='pencil-square', color='info', size='sm')
-            
-            # 日付カラムを datetime に変換してエディタに渡す
-            df_editor = st.session_state.df_log_manual.copy()
-            if "日付" in df_editor.columns:
-                df_editor["日付"] = pd.to_datetime(df_editor["日付"], errors="coerce")
+        # 必須カラムの保証
+        required_columns = ["日付", "問題ID", "正誤", "解答時間(秒)", "ミスの原因", "学習投入時間(分)"]
+        for col in required_columns:
+            if col not in st.session_state.df_log_manual.columns:
+                st.session_state.df_log_manual[col] = pd.Series(dtype='object')
 
-            edited_df = st.data_editor(
-                df_editor,
-                num_rows="dynamic",
-                use_container_width=True,
-                column_config={
-                    "日付": st.column_config.DateColumn(t("date"), format="YYYY-MM-DD"),
-                    "正誤": st.column_config.SelectboxColumn(t("result"), options=["〇", "✕"]),
-                    "ミスの原因": st.column_config.SelectboxColumn(t("miss_reason"), options=["-", "理解不足", "知識不足", "時間不足", "ケアレス"]),
-                }
-            )
+        # --- 新機能: データエディタで直接編集 ---
+        sac.alert(t("edit_cell_instruction"), icon='pencil-square', color='info', size='sm')
+        
+        # 日付カラムを datetime に変換してエディタに渡す
+        df_editor = st.session_state.df_log_manual.copy()
+        if "日付" in df_editor.columns:
+            df_editor["日付"] = pd.to_datetime(df_editor["日付"], errors="coerce")
+
+        edited_df = st.data_editor(
+            df_editor,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "日付": st.column_config.DateColumn(t("date"), format="YYYY-MM-DD"),
+                "正誤": st.column_config.SelectboxColumn(t("result"), options=["〇", "✕"]),
+                "ミスの原因": st.column_config.SelectboxColumn(t("miss_reason"), options=["-", "理解不足", "知識不足", "時間不足", "ケアレス"]),
+            }
+        )
+        
+        # 編集があった場合、日付を文字列に戻して保存
+        if not edited_df.equals(df_editor):
+            edited_df["日付"] = edited_df["日付"].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notnull(x) else "")
+            st.session_state.df_log_manual = edited_df
             
-            # 編集があった場合、日付を文字列に戻して保存
-            if not edited_df.equals(df_editor):
-                edited_df["日付"] = edited_df["日付"].apply(lambda x: x.strftime("%Y-%m-%d") if pd.notnull(x) else "")
-                st.session_state.df_log_manual = edited_df
-                st.success(t("changes_saved"))
-                trigger_rerun()
-            
-            csv = st.session_state.df_log_manual.to_csv(index=False, encoding='utf-8-sig')
-            st.download_button(
-                label=t("download_csv"),
-                data=csv,
-                file_name=f"spi_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
+            # Google Sheetsに保存
+            try:
+                # 一時ファイルに保存
+                edited_df.to_csv("temp_manual_edit.csv", index=False)
+                success, err = st.session_state.sheets_manager.sync_from_csv(st.session_state.current_user, "temp_manual_edit.csv")
+                
+                if success:
+                    st.success(t("changes_saved"))
+                    load_sheet_data.clear() # キャッシュクリア
+                    if os.path.exists("temp_manual_edit.csv"):
+                        os.remove("temp_manual_edit.csv")
+                    trigger_rerun()
+                else:
+                    st.error(f"保存エラー: {err}")
+            except Exception as e:
+                st.error(f"保存処理エラー: {str(e)}")
+        
+        csv = st.session_state.df_log_manual.to_csv(index=False, encoding='utf-8-sig')
+        st.download_button(
+            label=t("download_csv"),
+            data=csv,
+            file_name=f"spi_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
             
     st.markdown("---")
     uploaded = st.file_uploader(t("replace_data_csv"), type=["csv"], key="tab2_upload")
@@ -3822,9 +4316,25 @@ if tab_selection == t("tab_data_list"):
             if missing:
                 st.error(t("missing_csv_columns").format(columns=', '.join(missing)))
             else:
+
                 st.session_state.df_log_manual = df_new[required].copy()
-                st.success(t("session_data_replaced"))
-                trigger_rerun()
+                
+                # Google Sheetsに保存
+                try:
+                    # 一時ファイルに保存
+                    st.session_state.df_log_manual.to_csv("temp_upload_manual.csv", index=False)
+                    success, err = st.session_state.sheets_manager.sync_from_csv(st.session_state.current_user, "temp_upload_manual.csv")
+                    
+                    if success:
+                        st.success(t("session_data_replaced"))
+                        load_sheet_data.clear() # キャッシュクリア
+                        if os.path.exists("temp_upload_manual.csv"):
+                            os.remove("temp_upload_manual.csv")
+                        trigger_rerun()
+                    else:
+                        st.error(f"保存エラー: {err}")
+                except Exception as e:
+                    st.error(f"保存処理エラー: {str(e)}")
         except Exception as e:
             st.error(t("csv_read_failed").format(error=e))
     
@@ -3958,7 +4468,7 @@ if tab_selection == t("tab_ai_analysis"):
                     u_c = le_unit.transform([row["単元"]])[0]
                     # 今日の予測
                     p = model_acc.predict([[current_days, s_c, u_c, avg_time, avg_study]])[0]
-                    recs.append({t("subject"): row["科目"], t("unit"): row["単元"], t("predicted_accuracy"): p})
+                    recs.append({t("subject"): dt(row["科目"]), t("unit"): dt(row["単元"]), t("predicted_accuracy"): p})
                 except:
                     pass
             
@@ -3972,14 +4482,45 @@ if tab_selection == t("tab_ai_analysis"):
             else:
                 sac.alert(t("no_growth_zone_units"), icon='check2-circle', color='success')
             
-            # 4. 学習フロー可視化（Sankey Diagram）
+            # --- 類似問題生成 ---
+            sac.divider(label=t("ai_problem_gen_title"), icon='pencil-fill', align='left')
+            st.caption(t("ai_problem_gen_desc"))
+            
+            col_gen1, col_gen2 = st.columns([2, 1])
+            with col_gen1:
+                # 全単元を取得（マスタデータから）
+                all_units = sorted(df_master["単元"].unique().tolist()) if not df_master.empty else ["推論", "集合", "確率"]
+                
+                # 苦手な単元（正答率が低い順）を優先的に表示するためのソート
+                if not agg.empty:
+                    weak_units = agg.sort_values("正答率")["単元"].tolist()
+                # 苦手な順 + それ以外の単元
+                    sorted_units = weak_units + [u for u in all_units if u not in weak_units]
+                else:
+                    sorted_units = all_units
+                
+                target_unit = st.selectbox(t("select_unit_label"), sorted_units, format_func=dt)
+            
+            with col_gen2:
+                st.write("") # Spacer
+                st.write("")
+                if st.button(t("generate_problem_btn"), type="primary", use_container_width=True):
+                    with st.spinner(t("generating_problem_spinner")):
+                        problem_text = ai_utils.generate_similar_problem("SPI", target_unit)
+                        st.session_state.generated_problem = problem_text
+            
+            if "generated_problem" in st.session_state:
+                st.markdown(t("generated_problem_title"))
+                st.info(st.session_state.generated_problem)
+            
+            # 4. 学習フロー可視化（積み上げ棒グラフ）
             st.markdown("---")
-            sac.divider(label=t('learning_flow_visualization'), icon='diagram-3', align='left')
+            sac.divider(label=t('learning_flow_visualization'), icon='bar-chart-steps', align='left')
             st.caption(t("learning_flow_visualization_desc"))
             
-            sankey_fig = generate_sankey_diagram(df)
-            if sankey_fig:
-                st.plotly_chart(sankey_fig, use_container_width=True, config={'displayModeBar': False})
+            bar_fig = generate_stacked_bar_chart(df)
+            if bar_fig:
+                st.plotly_chart(bar_fig, use_container_width=True, config={'displayModeBar': False})
                 
                 # インサイト表示
                 correct_rate = (df["正誤"] == "〇").sum() / len(df)
@@ -3999,6 +4540,310 @@ if tab_selection == t("tab_ai_analysis"):
                 """, unsafe_allow_html=True)
             else:
                 sac.alert(t("data_insufficient_sankey"), icon='info-circle', color='info')
+
+if tab_selection == t("tab_ai_chat"):
+    sac.divider(label=t("ai_coach_title"), icon='robot', align='left', size='lg', color='blue')
+    st.caption(t("ai_chat_desc"))
+    
+    # PDFアップロード
+    with st.expander(t("upload_pdf_expander"), icon=":material/upload_file:"):
+        # Note: st.expander icon supports emojis or Material Symbols (Streamlit 1.34+). 
+        # Bootstrap icons are not supported in st.expander icon argument directly unless using emoji shortcodes that map to icons, which is rare.
+        # Streamlit supports Material Symbols like ":material/upload_file:".
+        # If user strictly wants Bootstrap icons everywhere, we can't do it in st.expander icon easily.
+        # But removing the emoji "📂" is a good start.
+        # I will use a Material Symbol which is the modern Streamlit way, or just no icon if preferred.
+        # The user asked for "Bootstrap icon", but Streamlit native components don't support BI classes.
+        # sac components do.
+        # I will use sac.divider for headers.
+        # For expander, I will remove the emoji from the label.
+        uploaded_file = st.file_uploader(t("select_pdf"), type="pdf")
+        if uploaded_file is not None:
+            # テキスト抽出（キャッシュしておくと良いが、簡易実装として毎回読むか、session_stateに入れる）
+            # ファイルが変わった場合のみ読み込むロジック
+            if "current_pdf_name" not in st.session_state or st.session_state.current_pdf_name != uploaded_file.name:
+                with st.spinner(t("reading_pdf")):
+                    pdf_text = ai_utils.extract_text_from_pdf(uploaded_file)
+                    st.session_state.pdf_context = pdf_text
+                    st.session_state.current_pdf_name = uploaded_file.name
+                st.success(t("pdf_read_success").format(uploaded_file.name))
+            
+            # 読み込み済みであることを表示
+            if "pdf_context" in st.session_state:
+                st.info(t("current_pdf").format(st.session_state.current_pdf_name))
+
+    # チャット履歴の初期化
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # 履歴の表示
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # ユーザー入力
+    if prompt := st.chat_input(t("chat_placeholder")):
+        # ユーザーのメッセージを表示
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # AIの応答
+        with st.chat_message("assistant"):
+            with st.spinner(t("thinking")):
+                # コンテキスト（学習状況）の作成
+                context = ""
+                if not df_log.empty:
+                    total_time = df_log["学習投入時間(分)"].sum()
+                    acc = (df_log["正誤"] == "〇").mean()
+                    context = t("context_summary").format(total_time, acc)
+                
+                # PDFコンテキスト
+                doc_content = st.session_state.get("pdf_context", "")
+                
+                response = ai_utils.get_gemini_response(prompt, context, doc_content)
+                st.markdown(response)
+        
+        # 履歴に追加
+        st.session_state.messages.append({"role": "assistant", "content": response})
+
+def render_flashcards():
+    """
+    暗記カード機能のレンダリング
+    """
+    sac.divider(label=t("flashcards_title"), icon='card-text', align='left', size='lg', color='indigo')
+    st.caption(t("flashcards_desc"))
+    
+    # 単元選択
+    units = list(FLASHCARD_DATA.keys())
+    selected_unit = st.selectbox(t("select_unit"), units, key="fc_unit_select", format_func=dt)
+    
+    if selected_unit:
+        cards = FLASHCARD_DATA[selected_unit]
+        
+        # セッション状態でカードインデックスを管理
+        if "fc_index" not in st.session_state:
+            st.session_state.fc_index = 0
+        if "fc_flipped" not in st.session_state:
+            st.session_state.fc_flipped = False
+        if "fc_shuffled_cards" not in st.session_state:
+            st.session_state.fc_shuffled_cards = cards
+            
+        # ユニットが変わったらリセット
+        if st.session_state.get("fc_current_unit") != selected_unit:
+            st.session_state.fc_current_unit = selected_unit
+            st.session_state.fc_index = 0
+            st.session_state.fc_flipped = False
+            st.session_state.fc_shuffled_cards = cards
+            
+        current_cards = st.session_state.fc_shuffled_cards
+        total_cards = len(current_cards)
+        current_idx = st.session_state.fc_index
+        
+        if total_cards == 0:
+            st.info(t("no_cards_for_unit"))
+            return
+
+        card = current_cards[current_idx]
+        
+        # Import components for HTML embedding
+        import streamlit.components.v1 as components
+        
+        # カード表示エリア
+        col_card, col_ctrl = st.columns([3, 1])
+        
+        # Define controls first to handle state updates before rendering the card
+        with col_ctrl:
+            st.write(f"**{t('card_counter').format(current_idx + 1, total_cards)}**")
+            
+            # Navigation Controls
+            # Use sac.buttons for Bootstrap icons
+            
+            selected_action = sac.buttons([
+                sac.ButtonsItem(label=t('flip'), icon='arrow-repeat'),
+                sac.ButtonsItem(label=t('prev_card'), icon='arrow-left'),
+                sac.ButtonsItem(label=t('next_card'), icon='arrow-right'),
+                sac.ButtonsItem(label=t('shuffle'), icon='shuffle'),
+            ], align='center', direction='vertical', size='sm', variant='outline', return_index=True, key=f"fc_ctrl_{st.session_state.fc_index}_{st.session_state.fc_flipped}")
+            
+            if selected_action == 0: # Flip
+                st.session_state.fc_flipped = not st.session_state.fc_flipped
+                trigger_rerun()
+            elif selected_action == 1: # Prev
+                st.session_state.fc_index = (current_idx - 1 + total_cards) % total_cards
+                st.session_state.fc_flipped = False
+                trigger_rerun()
+            elif selected_action == 2: # Next
+                st.session_state.fc_index = (current_idx + 1) % total_cards
+                st.session_state.fc_flipped = False
+                trigger_rerun()
+            elif selected_action == 3: # Shuffle
+                import random
+                random.shuffle(st.session_state.fc_shuffled_cards)
+                st.session_state.fc_index = 0
+                st.session_state.fc_flipped = False
+                trigger_rerun()
+
+        with col_card:
+            # Client-side Flashcard with HTML/CSS/JS
+            
+            # Prepare content
+            q_text = card['question']
+            a_text = card['answer']
+            note_text = card.get('note', '')
+            sub_q = t("question")
+            sub_a = t("answer")
+            hint_text = t("click_to_show_answer")
+            
+            # Determine initial class based on python state (in case Flip button was used)
+            # But note: clicking the card toggles JS class, not Python state.
+            # So Python state might be out of sync if user clicks card then clicks Flip button.
+            # This is acceptable for a simple hybrid approach.
+            initial_class = "flipped" if st.session_state.fc_flipped else ""
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+            <style>
+                body {{
+                    font-family: "Source Sans Pro", sans-serif;
+                    background-color: transparent;
+                    margin: 0;
+                    padding: 0;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 320px;
+                    perspective: 1000px;
+                }}
+                .flashcard-container {{
+                    width: 100%;
+                    height: 100%;
+                    position: relative;
+                    cursor: pointer;
+                    transform-style: preserve-3d;
+                    transition: transform 0.6s;
+                }}
+                .flashcard-container.flipped {{
+                    transform: rotateY(180deg);
+                }}
+                .face {{
+                    position: absolute;
+                    width: 100%;
+                    height: 100%;
+                    backface-visibility: hidden;
+                    border-radius: 1rem;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    text-align: center;
+                    padding: 20px;
+                    box-sizing: border-box;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                }}
+                .front {{
+                    background-color: white;
+                    color: #31333F;
+                    border: 1px solid #e5e7eb;
+                }}
+                .back {{
+                    background-color: #eff6ff;
+                    color: #31333F;
+                    border: 2px solid #3b82f6;
+                    transform: rotateY(180deg);
+                }}
+                .fc-sub {{
+                    font-size: 0.85rem;
+                    color: #6b7280;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }}
+                .fc-content {{
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    margin-bottom: 0.5rem;
+                }}
+                .fc-note {{
+                    font-size: 0.9rem;
+                    color: #4b5563;
+                    margin-top: 1rem;
+                    background: rgba(255,255,255,0.5);
+                    padding: 8px 12px;
+                    border-radius: 6px;
+                }}
+                .hint {{
+                    font-size: 0.8rem;
+                    color: #9ca3af;
+                    margin-top: 1rem;
+                }}
+            </style>
+            </head>
+            <body>
+                <div class="flashcard-container {initial_class}" onclick="this.classList.toggle('flipped')">
+                    <div class="face front">
+                        <div class="fc-sub">{sub_q}</div>
+                        <div class="fc-content">{q_text}</div>
+                        <div class="hint">{hint_text}</div>
+                    </div>
+                    <div class="face back">
+                        <div class="fc-sub">{sub_a}</div>
+                        <div class="fc-content">{a_text}</div>
+                        <div class="fc-note">{note_text}</div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            components.html(html_content, height=330)
+
+if tab_selection == t("tab_flashcards"):
+    render_flashcards()
+
+if tab_selection == t("tab_ranking"):
+    sac.divider(label=t("ranking_title"), icon='trophy-fill', align='left', size='lg', color='yellow')
+    st.caption(t("ranking_desc"))
+
+    # 自分の学習時間を更新
+    if not df_log.empty:
+        total_study_minutes = df_log["学習投入時間(分)"].sum()
+        total_study_hours = total_study_minutes / 60
+        
+        # 更新処理
+        with st.spinner(t("ranking_updating")):
+            st.session_state.sheets_manager.update_ranking(st.session_state.current_user, total_study_hours)
+    
+    # ランキング取得
+    df_rank, err = st.session_state.sheets_manager.get_ranking()
+    
+    if err:
+        st.error(t("ranking_error").format(err))
+    else:
+        if not df_rank.empty:
+            # 自分の順位を確認
+            my_rank = df_rank[df_rank["User"] == st.session_state.current_user].index.tolist()
+            if my_rank:
+                rank_num = my_rank[0] + 1
+                st.metric(t("your_rank"), f"{rank_num}{t('rank_suffix')}", f"{df_rank.iloc[my_rank[0]]['TotalStudyTime']:.1f}{t('hours_suffix')}")
+            
+            # ランキング表示
+            st.dataframe(
+                df_rank[["User", "TotalStudyTime"]].rename(columns={"User": t("user_label"), "TotalStudyTime": t("study_time_hours")}),
+                use_container_width=True,
+                hide_index=False
+            )
+            
+            # グラフ表示
+            fig_rank = px.bar(df_rank.head(10), x="TotalStudyTime", y="User", orientation='h', 
+                              title=t("top_10_users"), text_auto='.1f')
+            fig_rank.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig_rank, use_container_width=True)
+        else:
+            st.info(t("no_ranking_data"))
 
 if tab_selection == t("tab_review_notes"):
     sac.divider(label=t('review_notes_title'), icon='journal-bookmark', align='center')
@@ -4055,6 +4900,36 @@ if tab_selection == t("tab_settings"):
     edate = st.date_input(t("exam_date"), value=st.session_state.exam_date if st.session_state.exam_date else None, key="exam_date_input")
     if st.session_state.exam_date != edate:
         st.session_state.exam_date = edate
+        trigger_rerun()
+
+    # ダッシュボード表示設定
+    sac.divider(label=t("dashboard_settings"), icon='layout-text-window-reverse', align='left')
+    st.caption(t("dashboard_settings_desc"))
+    
+    widgets_options = ["主要指標", "学習カレンダー", "学習記録", "週間学習プラン", "バッジ"]
+    
+    widget_name_map = {
+        "主要指標": t("widget_metrics"),
+        "学習カレンダー": t("widget_calendar"),
+        "学習記録": t("widget_log"),
+        "週間学習プラン": t("widget_plan"),
+        "バッジ": t("widget_badges")
+    }
+    
+    # Ensure defaults are valid
+    current_defaults = st.session_state.get("dashboard_widgets_v2", ["主要指標", "学習カレンダー", "学習記録", "週間学習プラン"])
+    valid_defaults = [w for w in current_defaults if w in widgets_options]
+
+    selected_widgets = st.multiselect(
+        t("select_widgets_label"),
+        options=widgets_options,
+        default=valid_defaults,
+        key="dashboard_widgets_select_v2",
+        format_func=lambda x: widget_name_map.get(x, x)
+    )
+    
+    if selected_widgets != st.session_state.get("dashboard_widgets_v2"):
+        st.session_state.dashboard_widgets_v2 = selected_widgets
         trigger_rerun()
 
     # テーマ設定
@@ -4115,7 +4990,7 @@ if tab_selection == t("tab_settings"):
         
         with col_dl2:
             # PDF出力
-            pdf_data = generate_pdf_report(report, st.session_state.current_user)
+            pdf_data = generate_pdf_report(report, st.session_state.current_user, df)
             if pdf_data:
                 st.download_button(
                     label=t("download_pdf"),
@@ -4142,9 +5017,10 @@ if tab_selection == t("tab_settings"):
                 st.info("Excel出力には追加ライブラリが必要です")
     
     st.markdown("---")
-    st.write("今後の機能予定:")
-    st.write("- 自動学習プラン提案")
-    st.write("- ユーザー別トラッキング")
+    st.markdown("---")
+    st.write(t("future_features"))
+    st.write(t("feature_auto_plan"))
+    st.write(t("feature_user_tracking"))
 
 st.markdown("</div>", unsafe_allow_html=True)
 

@@ -2,8 +2,22 @@
 streamlit_dashboard/token.json
 streamlit_dashboard/client_secret.json
 .streamlit/secrets.toml
+credentials.json
 
 # System
 .DS_Store
 __pycache__/
 *.pyc
+
+# Virtual Environment
+streamlit_dashboard/lib/
+streamlit_dashboard/share/
+streamlit_dashboard/bin/
+streamlit_dashboard/include/
+streamlit_dashboard/pyvenv.cfg
+.venv/
+venv/
+
+# Temp files
+streamlit_dashboard/temp_upload.csv
+temp_*.csv

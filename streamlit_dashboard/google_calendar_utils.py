@@ -7,47 +7,65 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/spreadsheets'
+]
 
-def get_calendar_service():
-    """Google Calendar APIのサービスオブジェクトを取得する"""
+def get_credentials():
+    """認証情報を取得する共通関数"""
     creds = None
     
     # ---------------------------------------------------------
     # 1. Streamlit CloudのSecrets（金庫）を確認
     # ---------------------------------------------------------
-    if "token" in st.secrets:
-        try:
-            token_info = st.secrets["token"]
-            creds = Credentials(
-                token=token_info["token"],
-                refresh_token=token_info["refresh_token"],
-                token_uri=token_info["token_uri"],
-                client_id=token_info["client_id"],
-                client_secret=token_info["client_secret"],
-                scopes=SCOPES
-            )
-            # トークンの有効期限切れチェック
-            if not creds.valid:
-                if creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-        except Exception as e:
-            return None, f"Secretsの設定エラー: {str(e)}"
+    try:
+        if "token" in st.secrets:
+            try:
+                token_info = st.secrets["token"]
+                creds = Credentials(
+                    token=token_info["token"],
+                    refresh_token=token_info["refresh_token"],
+                    token_uri=token_info["token_uri"],
+                    client_id=token_info["client_id"],
+                    client_secret=token_info["client_secret"],
+                    scopes=SCOPES
+                )
+                # トークンの有効期限切れチェック
+                if not creds.valid:
+                    if creds.expired and creds.refresh_token:
+                        creds.refresh(Request())
+            except Exception as e:
+                return None, f"Secretsの設定エラー: {str(e)}"
+    except Exception:
+        # secrets.tomlが存在しない場合は無視してローカルファイル確認へ進む
+        pass
 
     # ---------------------------------------------------------
     # 2. ローカルファイル（PC用）を確認 - クラウドでは無視
     # ---------------------------------------------------------
-    elif os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-        if not creds.valid:
-            if creds.expired and creds.refresh_token:
-                creds.refresh(Request())
+    if not creds and os.path.exists('token.json'):
+        try:
+            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+            if not creds.valid:
+                if creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+        except Exception as e:
+            return None, f"ローカル認証エラー: {str(e)}"
 
     # ---------------------------------------------------------
     # 3. どちらも見つからない場合
     # ---------------------------------------------------------
     if not creds or not creds.valid:
-        # 【重要】クラウド上ではここでストップさせる（ブラウザを開こうとしない）
         return None, "認証情報が見つかりません。Streamlit CloudのSecrets設定を確認してください。"
+
+    return creds, None
+
+def get_calendar_service():
+    """Google Calendar APIのサービスオブジェクトを取得する"""
+    creds, error = get_credentials()
+    if error:
+        return None, error
 
     try:
         service = build('calendar', 'v3', credentials=creds)
