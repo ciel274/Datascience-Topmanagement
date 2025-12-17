@@ -3643,110 +3643,110 @@ if tab_selection == t("tab_dashboard"):
 """
                     
                     st.markdown(f"""
-                    <style>
-                    .roadmap-card {{
-                        position: relative;
-                        background: white;
-                        border: 1px solid {status_color}40;
-                        border-radius: 12px;
-                        padding: 16px;
-                        text-align: center;
-                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                        height: 100%;
-                        cursor: help;
-                        transition: all 0.2s ease;
-                    }}
-                    .roadmap-card:hover {{
-                        transform: translateY(-4px);
-                        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-                    }}
-                    .step-badge {{
-                        position: absolute;
-                        top: -10px;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        background: {status_color};
-                        color: white;
-                        font-size: 0.75rem;
-                        font-weight: 700;
-                        padding: 2px 10px;
-                        border-radius: 999px;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    }}
-                    .roadmap-tooltip {{
-                        visibility: hidden;
-                        width: 220px;
-                        background-color: #1e293b;
-                        color: #fff;
-                        text-align: left;
-                        border-radius: 8px;
-                        padding: 12px;
-                        position: absolute;
-                        z-index: 20;
-                        bottom: 115%;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        opacity: 0;
-                        transition: opacity 0.2s;
-                        font-size: 0.8rem;
-                        line-height: 1.5;
-                        pointer-events: none;
-                        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-                        border: 1px solid rgba(255,255,255,0.1);
-                    }}
-                    .roadmap-tooltip::after {{
-                        content: "";
-                        position: absolute;
-                        top: 100%;
-                        left: 50%;
-                        margin-left: -6px;
-                        border-width: 6px;
-                        border-style: solid;
-                        border-color: #1e293b transparent transparent transparent;
-                    }}
-                    .roadmap-card:hover .roadmap-tooltip {{
-                        visibility: visible;
-                        opacity: 1;
-                    }}
-                    </style>
-                    
-                    <div style="position: relative; height: 100%;">
-                        <div class="roadmap-card">
-                            <div class="step-badge">STEP {idx + 1}</div>
-                            <div class="roadmap-tooltip">
-                                <strong style="color: #e2e8f0; display: block; margin-bottom: 4px;">{t('main_units')}</strong>
-                                {units_list}
-                            </div>
-                            <div style="font-size: 2rem; margin-bottom: 12px; margin-top: 8px;">{status_icon}</div>
-                            <div style="font-weight: 800; font-size: 1.1rem; color: #111827; margin-bottom: 8px;">
-                                {display_phase_title}
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #334155; margin-bottom: 4px;">
-                                <span>{t('coverage')}</span>
-                                <span style="font-weight: 700; color: #0f172a;">{progress:.0f}%</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
-                                <span>{t('accuracy_rate')}</span>
-                                <span style="font-weight: 700; color: #0f172a;">{accuracy:.0f}%</span>
-                            </div>
-                            <div style="
-                                background: #f1f5f9;
-                                border-radius: 999px;
-                                height: 8px;
-                                overflow: hidden;
-                            ">
-                                <div style="
-                                    background: {status_color};
-                                    height: 100%;
-                                    width: {accuracy}%;
-                                    border-radius: 999px;
-                                    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-                                "></div>
-                            </div>
-                        </div>
-                        {arrow_html}
-                    </div>
-                    """, unsafe_allow_html=True)
+<style>
+.roadmap-card {{
+    position: relative;
+    background: white;
+    border: 1px solid {status_color}40;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    height: 100%;
+    cursor: help;
+    transition: all 0.2s ease;
+}}
+.roadmap-card:hover {{
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}}
+.step-badge {{
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: {status_color};
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 999px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}}
+.roadmap-tooltip {{
+    visibility: hidden;
+    width: 220px;
+    background-color: #1e293b;
+    color: #fff;
+    text-align: left;
+    border-radius: 8px;
+    padding: 12px;
+    position: absolute;
+    z-index: 20;
+    bottom: 115%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.2s;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    pointer-events: none;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255,255,255,0.1);
+}}
+.roadmap-tooltip::after {{
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: #1e293b transparent transparent transparent;
+}}
+.roadmap-card:hover .roadmap-tooltip {{
+    visibility: visible;
+    opacity: 1;
+}}
+</style>
+
+<div style="position: relative; height: 100%;">
+    <div class="roadmap-card">
+        <div class="step-badge">STEP {idx + 1}</div>
+        <div class="roadmap-tooltip">
+            <strong style="color: #e2e8f0; display: block; margin-bottom: 4px;">{t('main_units')}</strong>
+            {units_list}
+        </div>
+        <div style="font-size: 2rem; margin-bottom: 12px; margin-top: 8px;">{status_icon}</div>
+        <div style="font-weight: 800; font-size: 1.1rem; color: #111827; margin-bottom: 8px;">
+            {display_phase_title}
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #334155; margin-bottom: 4px;">
+            <span>{t('coverage')}</span>
+            <span style="font-weight: 700; color: #0f172a;">{progress:.0f}%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
+            <span>{t('accuracy_rate')}</span>
+            <span style="font-weight: 700; color: #0f172a;">{accuracy:.0f}%</span>
+        </div>
+        <div style="
+            background: #f1f5f9;
+            border-radius: 999px;
+            height: 8px;
+            overflow: hidden;
+        ">
+            <div style="
+                background: {status_color};
+                height: 100%;
+                width: {accuracy}%;
+                border-radius: 999px;
+                transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            "></div>
+        </div>
+    </div>
+    {arrow_html}
+</div>
+""", unsafe_allow_html=True)
             
             # 次のステップ推薦
             st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
@@ -4664,160 +4664,189 @@ def render_flashcards():
         import streamlit.components.v1 as components
         
         # カード表示エリア
-        col_card, col_ctrl = st.columns([3, 1])
+        # レイアウト変更: カードを上に、ボタンを下に配置
         
-        # Define controls first to handle state updates before rendering the card
-        with col_ctrl:
-            st.write(f"**{t('card_counter').format(current_idx + 1, total_cards)}**")
-            
-            # Navigation Controls
-            # Use sac.buttons for Bootstrap icons
-            
-            # Navigation Controls
-            # Use standard columns and buttons to avoid infinite loop with stateful components
-            c1, c2, c3, c4 = st.columns(4)
-            
-            with c1:
-                if st.button(t('prev_card'), key=f"fc_prev_{current_idx}", use_container_width=True):
-                    st.session_state.fc_index = (current_idx - 1 + total_cards) % total_cards
-                    st.session_state.fc_flipped = False
-                    trigger_rerun()
-            
-            with c2:
-                if st.button(t('flip'), key=f"fc_flip_{current_idx}", use_container_width=True):
-                    st.session_state.fc_flipped = not st.session_state.fc_flipped
-                    trigger_rerun()
-            
-            with c3:
-                if st.button(t('next_card'), key=f"fc_next_{current_idx}", use_container_width=True):
-                    st.session_state.fc_index = (current_idx + 1) % total_cards
-                    st.session_state.fc_flipped = False
-                    trigger_rerun()
-            
-            with c4:
-                if st.button(t('shuffle'), key=f"fc_shuffle_{current_idx}", use_container_width=True):
-                    import random
-                    random.shuffle(st.session_state.fc_shuffled_cards)
-                    st.session_state.fc_index = 0
-                    st.session_state.fc_flipped = False
-                    trigger_rerun()
-
-        with col_card:
-            # Client-side Flashcard with HTML/CSS/JS
-            
-            # Prepare content
-            q_text = card['question']
-            a_text = card['answer']
-            note_text = card.get('note', '')
-            sub_q = t("question")
-            sub_a = t("answer")
-            hint_text = t("click_to_show_answer")
-            
-            # Determine initial class based on python state (in case Flip button was used)
-            # But note: clicking the card toggles JS class, not Python state.
-            # So Python state might be out of sync if user clicks card then clicks Flip button.
-            # This is acceptable for a simple hybrid approach.
-            initial_class = "flipped" if st.session_state.fc_flipped else ""
-            
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-            <style>
-                body {{
-                    font-family: "Source Sans Pro", sans-serif;
-                    background-color: transparent;
-                    margin: 0;
-                    padding: 0;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 320px;
-                    perspective: 1000px;
-                }}
-                .flashcard-container {{
-                    width: 100%;
-                    height: 100%;
-                    position: relative;
-                    cursor: pointer;
-                    transform-style: preserve-3d;
-                    transition: transform 0.6s;
-                }}
-                .flashcard-container.flipped {{
-                    transform: rotateY(180deg);
-                }}
-                .face {{
-                    position: absolute;
-                    width: 100%;
-                    height: 100%;
-                    backface-visibility: hidden;
-                    border-radius: 1rem;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    align-items: center;
-                    text-align: center;
-                    padding: 20px;
-                    box-sizing: border-box;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                }}
-                .front {{
-                    background-color: white;
-                    color: #31333F;
-                    border: 1px solid #e5e7eb;
-                }}
-                .back {{
-                    background-color: #eff6ff;
-                    color: #31333F;
-                    border: 2px solid #3b82f6;
-                    transform: rotateY(180deg);
-                }}
-                .fc-sub {{
-                    font-size: 0.85rem;
-                    color: #6b7280;
-                    margin-bottom: 0.5rem;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                }}
-                .fc-content {{
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    margin-bottom: 0.5rem;
-                }}
-                .fc-note {{
-                    font-size: 0.9rem;
-                    color: #4b5563;
-                    margin-top: 1rem;
-                    background: rgba(255,255,255,0.5);
-                    padding: 8px 12px;
-                    border-radius: 6px;
-                }}
-                .hint {{
-                    font-size: 0.8rem;
-                    color: #9ca3af;
-                    margin-top: 1rem;
-                }}
-            </style>
-            </head>
-            <body>
-                <div class="flashcard-container {initial_class}" onclick="this.classList.toggle('flipped')">
-                    <div class="face front">
-                        <div class="fc-sub">{sub_q}</div>
-                        <div class="fc-content">{q_text}</div>
-                        <div class="hint">{hint_text}</div>
-                    </div>
-                    <div class="face back">
-                        <div class="fc-sub">{sub_a}</div>
-                        <div class="fc-content">{a_text}</div>
-                        <div class="fc-note">{note_text}</div>
-                    </div>
+        # 1. カード表示
+        # Client-side Flashcard with HTML/CSS/JS
+        
+        # Prepare content
+        q_text = card['question']
+        a_text = card['answer']
+        note_text = card.get('note', '')
+        sub_q = t("question")
+        sub_a = t("answer")
+        hint_text = t("click_to_show_answer")
+        
+        # Determine initial class based on python state
+        initial_class = "flipped" if st.session_state.fc_flipped else ""
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <style>
+            body {{
+                font-family: "Source Sans Pro", sans-serif;
+                background-color: transparent;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 320px;
+                perspective: 1000px;
+            }}
+            .flashcard-container {{
+                width: 100%;
+                height: 100%;
+                position: relative;
+                cursor: pointer;
+                transform-style: preserve-3d;
+                transition: transform 0.6s;
+            }}
+            .flashcard-container.flipped {{
+                transform: rotateY(180deg);
+            }}
+            .face {{
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                backface-visibility: hidden;
+                border-radius: 1.5rem;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                padding: 30px;
+                box-sizing: border-box;
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+                border: 1px solid rgba(0,0,0,0.05);
+            }}
+            .front {{
+                background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+                color: #1e293b;
+            }}
+            .back {{
+                background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+                color: #1e3a8a;
+                transform: rotateY(180deg);
+                border: 2px solid #3b82f6;
+            }}
+            .fc-sub {{
+                font-size: 0.9rem;
+                color: #64748b;
+                margin-bottom: 1rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+            }}
+            .fc-content {{
+                font-size: 2rem;
+                font-weight: 800;
+                margin-bottom: 1rem;
+                line-height: 1.4;
+            }}
+            .fc-note {{
+                font-size: 1rem;
+                color: #475569;
+                margin-top: 1.5rem;
+                background: rgba(255,255,255,0.8);
+                padding: 12px 16px;
+                border-radius: 8px;
+                border: 1px solid #e2e8f0;
+            }}
+            .hint {{
+                font-size: 0.9rem;
+                color: #94a3b8;
+                margin-top: 1.5rem;
+                font-weight: 500;
+            }}
+        </style>
+        </head>
+        <body>
+            <div class="flashcard-container {initial_class}" onclick="this.classList.toggle('flipped')">
+                <div class="face front">
+                    <div class="fc-sub">{sub_q}</div>
+                    <div class="fc-content">{q_text}</div>
+                    <div class="hint">{hint_text}</div>
                 </div>
-            </body>
-            </html>
-            """
-            
-            components.html(html_content, height=330)
+                <div class="face back">
+                    <div class="fc-sub">{sub_a}</div>
+                    <div class="fc-content">{a_text}</div>
+                    <div class="fc-note">{note_text}</div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        components.html(html_content, height=330)
+        
+        # 2. コントロールボタン（カードの下に配置）
+        st.write(f"**{t('card_counter').format(current_idx + 1, total_cards)}**")
+        
+        # Custom CSS for buttons
+        st.markdown("""
+        <style>
+        div.stButton > button {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            background-color: white;
+            color: #4b5563;
+            font-weight: 600;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+        }
+        div.stButton > button:hover {
+            border-color: #3b82f6;
+            color: #3b82f6;
+            background-color: #eff6ff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transform: translateY(-1px);
+        }
+        div.stButton > button:active {
+            transform: translateY(0);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        c1, c2, c3, c4 = st.columns(4)
+        
+        with c1:
+            # Prev
+            label_prev = t('prev_card').replace('⬅', '').replace('➡', '').strip()
+            if st.button(label_prev, key=f"fc_prev_{current_idx}", icon=":material/arrow_back:", use_container_width=True):
+                st.session_state.fc_index = (current_idx - 1 + total_cards) % total_cards
+                st.session_state.fc_flipped = False
+                trigger_rerun()
+        
+        with c2:
+            # Flip
+            label_flip = t('flip').replace('🔄', '').strip()
+            if st.button(label_flip, key=f"fc_flip_{current_idx}", icon=":material/sync:", use_container_width=True):
+                st.session_state.fc_flipped = not st.session_state.fc_flipped
+                trigger_rerun()
+        
+        with c3:
+            # Next
+            label_next = t('next_card').replace('➡', '').replace('⬅', '').strip()
+            if st.button(label_next, key=f"fc_next_{current_idx}", icon=":material/arrow_forward:", use_container_width=True):
+                st.session_state.fc_index = (current_idx + 1) % total_cards
+                st.session_state.fc_flipped = False
+                trigger_rerun()
+        
+        with c4:
+            # Shuffle
+            label_shuffle = t('shuffle').replace('🔀', '').strip()
+            if st.button(label_shuffle, key=f"fc_shuffle_{current_idx}", icon=":material/shuffle:", use_container_width=True):
+                import random
+                import random
+                random.shuffle(st.session_state.fc_shuffled_cards)
+                st.session_state.fc_index = 0
+                st.session_state.fc_flipped = False
+                trigger_rerun()
 
 if tab_selection == t("tab_flashcards"):
     render_flashcards()
