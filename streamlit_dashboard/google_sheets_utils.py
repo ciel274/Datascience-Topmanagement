@@ -201,3 +201,98 @@ class GoogleSheetsManager:
             return df, None
         except Exception as e:
             return pd.DataFrame(), f"ランキング読み込みエラー: {str(e)}"
+    def get_or_create_settings_sheet(self):
+        """設定保存用のシートを取得、なければ作成"""
+        sheet_name = "User_Settings"
+        success, error = self.connect()
+        if not success:
+            return None, error
+
+        try:
+            try:
+                worksheet = self.spreadsheet.worksheet(sheet_name)
+            except gspread.WorksheetNotFound:
+                worksheet = self.spreadsheet.add_worksheet(title=sheet_name, rows=100, cols=6)
+                header = ["User", "Company", "TargetRate", "DailyStudyTime", "TimePolicy", "ExamDate"]
+                worksheet.append_row(header)
+            
+            return worksheet, None
+        except Exception as e:
+            return None, f"設定シート取得エラー: {str(e)}"
+
+    def save_user_settings(self, username, settings):
+        """ユーザー設定を保存"""
+        worksheet, error = self.get_or_create_settings_sheet()
+        if error:
+            return False, error
+
+        try:
+            # 全データを取得
+            data = worksheet.get_all_records()
+            df = pd.DataFrame(data)
+            
+            # 設定値を準備
+            company = settings.get("company_name", "")
+            target = settings.get("target_rate_user", 80)
+            daily_time = settings.get("daily_study_time", 60)
+            policy = settings.get("time_policy", "標準")
+            exam_date = settings.get("exam_date")
+            if exam_date:
+                exam_date_str = exam_date.strftime("%Y-%m-%d")
+            else:
+                exam_date_str = ""
+
+            row_data = [username, company, target, daily_time, policy, exam_date_str]
+
+            if not df.empty and "User" in df.columns and username in df["User"].values:
+                # 更新
+                cell = worksheet.find(username)
+                # 2列目から順に更新 (Company, TargetRate, DailyStudyTime, TimePolicy, ExamDate)
+                # gspreadのupdate_cellは遅いので、range updateの方が良いが、ここでは簡易的に
+                worksheet.update_cell(cell.row, 2, company)
+                worksheet.update_cell(cell.row, 3, target)
+                worksheet.update_cell(cell.row, 4, daily_time)
+                worksheet.update_cell(cell.row, 5, policy)
+                worksheet.update_cell(cell.row, 6, exam_date_str)
+            else:
+                # 新規追加
+                worksheet.append_row(row_data)
+                
+            return True, None
+        except Exception as e:
+            return False, f"設定保存エラー: {str(e)}"
+
+    def load_user_settings(self, username):
+        """ユーザー設定を読み込む"""
+        worksheet, error = self.get_or_create_settings_sheet()
+        if error:
+            return None, error
+
+        try:
+            data = worksheet.get_all_records()
+            df = pd.DataFrame(data)
+            
+            if not df.empty and "User" in df.columns and username in df["User"].values:
+                user_row = df[df["User"] == username].iloc[0]
+                
+                # 日付文字列をdateオブジェクトに変換
+                exam_date = None
+                if user_row["ExamDate"]:
+                    try:
+                        from datetime import datetime
+                        exam_date = datetime.strptime(user_row["ExamDate"], "%Y-%m-%d").date()
+                    except:
+                        pass
+
+                settings = {
+                    "company_name": user_row["Company"],
+                    "target_rate_user": int(user_row["TargetRate"]) if user_row["TargetRate"] else 80,
+                    "daily_study_time": int(user_row["DailyStudyTime"]) if user_row["DailyStudyTime"] else 60,
+                    "time_policy": user_row["TimePolicy"],
+                    "exam_date": exam_date
+                }
+                return settings, None
+            else:
+                return None, None # 設定なし（デフォルト使用）
+        except Exception as e:
+            return None, f"設定読み込みエラー: {str(e)}"

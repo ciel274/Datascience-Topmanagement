@@ -186,10 +186,10 @@ TRANSLATIONS = {
         "answer": "答え",
         "question": "問題",
         "click_to_show_answer": "クリックして答えを表示（下のボタン）",
-        "flip": "🔄 めくる",
-        "next_card": "次へ ➡",
-        "prev_card": "⬅ 前へ",
-        "shuffle": "🔀 シャッフル",
+        "flip": "めくる",
+        "next_card": "次へ",
+        "prev_card": "前へ",
+        "shuffle": "シャッフル",
         "card_counter": "Card {} / {}",
 
         # Ranking Tab
@@ -681,10 +681,10 @@ TRANSLATIONS = {
         "answer": "Answer",
         "question": "Question",
         "click_to_show_answer": "Click to show answer (Button below)",
-        "flip": "🔄 Flip",
-        "next_card": "Next ➡",
-        "prev_card": "⬅ Prev",
-        "shuffle": "🔀 Shuffle",
+        "flip": "Flip",
+        "next_card": "Next",
+        "prev_card": "Prev",
+        "shuffle": "Shuffle",
         "card_counter": "Card {} / {}",
 
         # Ranking Tab
@@ -1241,10 +1241,10 @@ TRANSLATIONS = {
         "answer": "答案",
         "question": "问题",
         "click_to_show_answer": "点击显示答案（下方按钮）",
-        "flip": "🔄 翻转",
-        "next_card": "下一个 ➡",
-        "prev_card": "⬅ 上一个",
-        "shuffle": "🔀 洗牌",
+        "flip": "翻转",
+        "next_card": "下一个",
+        "prev_card": "上一个",
+        "shuffle": "洗牌",
         "card_counter": "卡片 {} / {}",
 
         # Ranking Tab

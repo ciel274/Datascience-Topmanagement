@@ -9,8 +9,9 @@ import glob
 import json
 import calendar
 import urllib.parse
+import time
 import streamlit_antd_components as sac
-from google_calendar_utils import get_calendar_service, add_event_to_calendar
+from google_calendar_utils import get_calendar_service, add_event_to_calendar, get_credentials, get_user_info
 from google_sheets_utils import GoogleSheetsManager
 import app_translations as tr
 from app_translations import TRANSLATIONS
@@ -1398,6 +1399,47 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- Google Login Logic ---
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+
+if not st.session_state.current_user:
+    # Try to login automatically
+    creds, error = get_credentials()
+    if creds:
+        user_info, error = get_user_info(creds)
+        if user_info:
+            st.session_state.current_user = user_info.get('email')
+            st.session_state.user_name = user_info.get('name')
+            
+            # Load user settings
+            if "sheets_manager" not in st.session_state:
+                st.session_state.sheets_manager = GoogleSheetsManager()
+            
+            settings, err = st.session_state.sheets_manager.load_user_settings(st.session_state.current_user)
+            if settings:
+                st.session_state.company_name = settings.get("company_name", "")
+                st.session_state.target_rate_user = settings.get("target_rate_user", 80)
+                st.session_state.daily_study_time = settings.get("daily_study_time", 60)
+                st.session_state.time_policy = settings.get("time_policy", "標準")
+                st.session_state.exam_date = settings.get("exam_date")
+            
+            st.rerun()
+        else:
+            st.error(f"Login Failed: {error}")
+            if st.button("Retry Login"):
+                if os.path.exists('token.json'):
+                    os.remove('token.json')
+                st.rerun()
+            st.stop()
+    else:
+        st.info("Logging in...")
+        # get_credentials should have triggered the flow. If it returned None/Error without flow, show error.
+        st.error(f"Authentication Error: {error}")
+        if st.button("Retry"):
+             st.rerun()
+        st.stop()
+
 # --- Bootstrap Icons & Custom CSS ---
 st.markdown("""
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -1527,8 +1569,8 @@ if "exam_date" not in st.session_state:
     st.session_state.exam_date = None
 if "language" not in st.session_state:
     st.session_state.language = "日本語"
-if "current_user" not in st.session_state:
-    st.session_state.current_user = "デフォルトユーザー"
+# if "current_user" not in st.session_state:
+#     st.session_state.current_user = "デフォルトユーザー"
 if "user_data_dir" not in st.session_state:
     st.session_state.user_data_dir = "user_data"
 if "daily_study_time" not in st.session_state:
@@ -2206,28 +2248,40 @@ st.sidebar.markdown(f'<div class="chart-header"><i class="bi bi-sliders icon-bad
 # 1. 企業・目標設定
 expanded_settings = not bool(st.session_state.company_name)
 with st.sidebar.expander(t("company_goal_settings"), expanded=expanded_settings):
-    company = st.text_input(t("target_company"), value=st.session_state.company_name, placeholder=t("target_company_placeholder"), key="comp_input")
-    st.session_state.company_name = company
+    def save_settings():
+        """設定を保存するコールバック"""
+        settings = {
+            "company_name": st.session_state.comp_input,
+            "target_rate_user": st.session_state.target_slider,
+            "daily_study_time": st.session_state.time_slider,
+            "time_policy": st.session_state.time_select,
+            "exam_date": st.session_state.sidebar_exam_date
+        }
+        # セッションステートも更新
+        st.session_state.company_name = settings["company_name"]
+        st.session_state.target_rate_user = settings["target_rate_user"]
+        st.session_state.daily_study_time = settings["daily_study_time"]
+        st.session_state.time_policy = settings["time_policy"]
+        st.session_state.exam_date = settings["exam_date"]
+        
+        # Google Sheetsに保存
+        if st.session_state.current_user:
+            st.session_state.sheets_manager.save_user_settings(st.session_state.current_user, settings)
+
+    company = st.text_input(t("target_company"), value=st.session_state.company_name, placeholder=t("target_company_placeholder"), key="comp_input", on_change=save_settings)
     
-    target = st.slider(t("target_accuracy"), 0, 100, st.session_state.target_rate_user, 5, key="target_slider")
-    st.session_state.target_rate_user = target
+    target = st.slider(t("target_accuracy"), 0, 100, st.session_state.target_rate_user, 5, key="target_slider", on_change=save_settings)
     
-    study_time = st.slider(t("daily_study_time"), 10, 180, st.session_state.daily_study_time, 10, key="time_slider")
-    st.session_state.daily_study_time = study_time
+    study_time = st.slider(t("daily_study_time"), 10, 180, st.session_state.daily_study_time, 10, key="time_slider", on_change=save_settings)
     
     time_policy = st.selectbox(t("time_policy"), ["標準", "厳しく(-10%)", "緩く(+10%)"], 
-                             index=["標準", "厳しく(-10%)", "緩く(+10%)"].index(st.session_state.time_policy), format_func=t, key="time_select")
-    st.session_state.time_policy = time_policy
+                             index=["標準", "厳しく(-10%)", "緩く(+10%)"].index(st.session_state.time_policy), format_func=t, key="time_select", on_change=save_settings)
 
     # 試験日設定（サイドバーに追加）
     st.markdown("---")
     st.caption(t("exam_date_caption"))
     current_exam_date = st.session_state.exam_date if st.session_state.exam_date else datetime.today()
-    new_exam_date = st.date_input(t("exam_date"), value=current_exam_date, key="sidebar_exam_date")
-    
-    if new_exam_date != st.session_state.exam_date:
-        st.session_state.exam_date = new_exam_date
-        trigger_rerun()
+    new_exam_date = st.date_input(t("exam_date"), value=current_exam_date, key="sidebar_exam_date", on_change=save_settings)
 
 time_factor = {"標準": 1.0, "厳しく(-10%)": 0.9, "緩く(+10%)": 1.1}[st.session_state.time_policy]
 
@@ -2374,73 +2428,12 @@ if "sheets_manager" not in st.session_state:
 
 # 3. ユーザー管理
 with st.sidebar.expander(t("user_management"), expanded=False):
-    # スプレッドシートからユーザー（シート一覧）を取得
-    success, error = st.session_state.sheets_manager.connect()
-    
-    existing_users = []
-    if success:
-        try:
-            worksheets = st.session_state.sheets_manager.spreadsheet.worksheets()
-            existing_users = [ws.title for ws in worksheets if not ws.title.endswith("_notes")]
-        except:
-            pass
-    else:
-        st.sidebar.error(f"Google Sheets接続エラー: {error}")
-    
-    # ユーザー自動認証 (Streamlit Cloud)
-    user_email = None
-    try:
-        # st.experimental_user.email が存在し、かつテスト用アドレスでない場合
-        if hasattr(st, "experimental_user") and st.experimental_user.email and st.experimental_user.email != "test@example.com":
-            user_email = st.experimental_user.email
-    except:
-        pass
-
-    if user_email:
-        # --- 自動ログインモード ---
-        if st.session_state.current_user != user_email:
-            st.session_state.current_user = user_email
-            # シートが存在しない場合は自動作成
-            if user_email not in existing_users:
-                _, err = st.session_state.sheets_manager.get_or_create_user_sheet(user_email)
-                if err:
-                    st.sidebar.error(f"データ作成エラー: {err}")
-            trigger_rerun()
-            
-        st.sidebar.success(f"ログイン中: {user_email}")
-        st.markdown(f"**{t('current_user')}:** {st.session_state.current_user} (Auto-Login)")
-        
-    else:
-        # --- 手動選択モード (ローカル/未ログイン) ---
-        if t("default_user") not in existing_users:
-            existing_users.insert(0, t("default_user"))
-        
-        selected_user = st.selectbox(
-            t("select_user"),
-            options=[t("create_new_user")] + existing_users,
-            index=(existing_users.index(st.session_state.current_user) + 1) 
-                  if st.session_state.current_user in existing_users else 1,
-            format_func=lambda x: t("create_new") if x == t("create_new_user") else x
-        )
-        
-        if selected_user == t("create_new_user"):
-            new_user = st.text_input(t("new_user_name"), placeholder=t("new_user_placeholder"))
-            if st.button(t("create_user_btn")) and new_user:
-                if new_user not in existing_users:
-                    _, err = st.session_state.sheets_manager.get_or_create_user_sheet(new_user)
-                    if not err:
-                        st.session_state.current_user = new_user
-                        st.success(t("user_created").format(new_user))
-                        trigger_rerun()
-                    else:
-                        st.error(f"ユーザー作成エラー: {err}")
-                else:
-                    st.error(t("user_exists"))
-        elif selected_user != st.session_state.current_user:
-            st.session_state.current_user = selected_user
-            trigger_rerun()
-        
-        st.markdown(f"**{t('current_user')}:** {st.session_state.current_user}")
+    st.write(f"Logged in as: {st.session_state.current_user}")
+    if st.button("Logout"):
+        st.session_state.current_user = None
+        if os.path.exists('token.json'):
+            os.remove('token.json')
+        st.rerun()
 
 # 4. ファイルアップロードセクション (CSVインポート機能として残す)
 st.sidebar.markdown(f'<div class="chart-header" style="font-size:0.9rem; margin-bottom:8px;"><i class="bi bi-folder icon-badge" style="width:24px; height:24px; font-size:0.9rem;"></i>{t("file_management")}</div>', unsafe_allow_html=True)

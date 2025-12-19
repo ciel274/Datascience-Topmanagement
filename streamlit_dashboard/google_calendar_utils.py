@@ -9,7 +9,9 @@ from googleapiclient.discovery import build
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 SCOPES = [
     'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/spreadsheets'
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile'
 ]
 
 def get_credentials():
@@ -42,22 +44,41 @@ def get_credentials():
         pass
 
     # ---------------------------------------------------------
-    # 2. ローカルファイル（PC用）を確認 - クラウドでは無視
+    # 2. ローカルファイル（PC用）を確認
     # ---------------------------------------------------------
     if not creds and os.path.exists('token.json'):
         try:
             creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-            if not creds.valid:
-                if creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-        except Exception as e:
-            return None, f"ローカル認証エラー: {str(e)}"
+        except Exception:
+            # トークンファイルが壊れている場合は削除して再作成
+            os.remove('token.json')
+            creds = None
+
+    # 有効期限切れの再取得
+    if creds and not creds.valid:
+        if creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+            except Exception:
+                # リフレッシュ失敗時は再ログイン
+                creds = None
 
     # ---------------------------------------------------------
-    # 3. どちらも見つからない場合
+    # 3. 認証情報がない場合、新規ログイン（ローカルのみ）
     # ---------------------------------------------------------
-    if not creds or not creds.valid:
-        return None, "認証情報が見つかりません。Streamlit CloudのSecrets設定を確認してください。"
+    if not creds:
+        if os.path.exists('credentials.json'):
+            try:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    'credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
+                # トークンを保存
+                with open('token.json', 'w') as token:
+                    token.write(creds.to_json())
+            except Exception as e:
+                return None, f"ログインフローエラー: {str(e)}"
+        else:
+            return None, "認証情報が見つかりません。credentials.jsonを配置するか、Streamlit CloudのSecretsを設定してください。"
 
     return creds, None
 
@@ -72,6 +93,15 @@ def get_calendar_service():
         return service, None
     except Exception as e:
         return None, f"サービスの構築に失敗しました: {str(e)}"
+
+def get_user_info(creds):
+    """ユーザー情報を取得する"""
+    try:
+        service = build('oauth2', 'v2', credentials=creds)
+        user_info = service.userinfo().get().execute()
+        return user_info, None
+    except Exception as e:
+        return None, f"ユーザー情報の取得に失敗しました: {str(e)}"
 
 def add_event_to_calendar(service, summary, start_time, end_time, description=None):
     """カレンダーに予定を追加する"""
