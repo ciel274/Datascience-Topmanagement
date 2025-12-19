@@ -1426,12 +1426,27 @@ if not st.session_state.current_user:
             
             st.rerun()
         else:
-            st.error(f"Login Failed: {error}")
-            if st.button("Retry Login"):
-                if os.path.exists('token.json'):
-                    os.remove('token.json')
-                st.rerun()
-            st.stop()
+            if "invalid_scope" in str(error):
+                st.error("認証スコープエラー: 保存されているトークンの権限が不足しています。")
+                st.warning("""
+                **【重要】Streamlit CloudのSecretsを更新してください**
+                
+                新しい機能（Googleログイン）には、追加の権限（メールアドレスの取得）が必要です。
+                以下の手順でトークンを再生成し、Secretsを更新してください：
+                
+                1. ローカル環境でアプリを実行し、ログインし直す。
+                2. 生成された `token.json` の中身をコピーする。
+                3. Streamlit Cloudのアプリ設定画面 > Secrets に移動する。
+                4. `[token]` セクションの中身を、新しい `token.json` の内容で上書きする。
+                """)
+                st.stop()
+            else:
+                st.error(f"Login Failed: {error}")
+                if st.button("Retry Login"):
+                    if os.path.exists('token.json'):
+                        os.remove('token.json')
+                    st.rerun()
+                st.stop()
     else:
         st.info("Logging in...")
         # get_credentials should have triggered the flow. If it returned None/Error without flow, show error.
